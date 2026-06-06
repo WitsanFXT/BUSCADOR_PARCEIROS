@@ -3,8 +3,10 @@ import {
   Search,
   Users,
   Bot,
+  ClipboardCheck,
   X
 } from "lucide-react"
+
 
 import {
   Link,
@@ -38,7 +40,13 @@ export default function Sidebar({
       name: "Automação",
       path: "/automacao",
       icon: <Bot size={20} />
+    },
+    {
+      name: "Checklist",
+      path: "/checklist",
+      icon: <ClipboardCheck size={20} />
     }
+
   ]
 
   return (

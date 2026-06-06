@@ -18,6 +18,10 @@ const searchRoutes =
 const notificationsRoutes =
   require("./routes/notifications.routes")
 
+const checklistRoutes =
+  require("./routes/checklist.routes")
+
+
 /* CORS */
 app.use(cors({
   origin: "*"
@@ -56,6 +60,11 @@ app.use(
 app.use(
   "/search",
   searchRoutes
+)
+
+app.use(
+  "/checklist",
+  checklistRoutes
 )
 
 /* ROOT */

@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard"
 import SearchPartners from "./pages/SearchPartners"
 import CRM from "./pages/CRM"
 import Automation from "./pages/Automation"
+import Checklist from "./pages/Checklist"
 
 function App() {
 
@@ -38,6 +39,11 @@ function App() {
           <Route
             path="/automacao"
             element={<Automation />}
+          />
+
+          <Route
+            path="/checklist"
+            element={<Checklist />}
           />
 
         </Routes>

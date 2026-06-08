@@ -5,6 +5,39 @@ const router = express.Router()
 const supabase =
   require("../config/supabase")
 
+async function cleanupOldNotifications() {
+
+  const { data, error } =
+    await supabase
+      .from("notifications")
+      .select("id")
+      .order(
+        "created_at",
+        {
+          ascending: false
+        }
+      )
+
+  if (error || !data) return
+
+  const oldNotifications =
+    data.slice(15)
+
+  if (oldNotifications.length === 0) return
+
+  const oldIds =
+    oldNotifications.map(item => item.id)
+
+  await supabase
+    .from("notifications")
+    .delete()
+    .in(
+      "id",
+      oldIds
+    )
+
+}
+
 /*
 =================================
 LISTAR NOTIFICAÇÕES
@@ -14,6 +47,8 @@ LISTAR NOTIFICAÇÕES
 router.get("/", async (req, res) => {
 
   try {
+
+    await cleanupOldNotifications()
 
     const { data, error } =
       await supabase
@@ -25,6 +60,7 @@ router.get("/", async (req, res) => {
             ascending: false
           }
         )
+        .limit(15)
 
     if (error) {
 
@@ -33,6 +69,14 @@ router.get("/", async (req, res) => {
         .json(error)
 
     }
+
+
+    console.log(
+  data.map(n => ({
+    title: n.title,
+    read: n.read
+  }))
+)
 
     res.json(data)
 
@@ -77,7 +121,8 @@ router.post("/", async (req, res) => {
         .insert([
           {
             title,
-            message
+            message,
+            read: false
           }
         ])
         .select()
@@ -89,6 +134,8 @@ router.post("/", async (req, res) => {
         .json(error)
 
     }
+
+    await cleanupOldNotifications()
 
     res.status(201).json(data)
 
@@ -153,7 +200,7 @@ router.put("/read-all", async (req, res) => {
 
   try {
 
-    const { error } =
+    const updateFalse =
       await supabase
         .from("notifications")
         .update({
@@ -161,12 +208,24 @@ router.put("/read-all", async (req, res) => {
         })
         .eq("read", false)
 
-    if (error) {
-
+    if (updateFalse.error) {
       return res
         .status(400)
-        .json(error)
+        .json(updateFalse.error)
+    }
 
+    const updateNull =
+      await supabase
+        .from("notifications")
+        .update({
+          read: true
+        })
+        .is("read", null)
+
+    if (updateNull.error) {
+      return res
+        .status(400)
+        .json(updateNull.error)
     }
 
     res.json({

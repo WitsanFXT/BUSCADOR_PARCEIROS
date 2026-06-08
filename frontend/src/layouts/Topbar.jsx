@@ -24,6 +24,10 @@ export default function Topbar({
     setShowModal] =
     useState(false)
 
+  const [metaPercent,
+    setMetaPercent] =
+    useState(0)
+
   const [showNotifications,
     setShowNotifications] =
     useState(false)
@@ -34,18 +38,28 @@ export default function Topbar({
 
   useEffect(() => {
 
-    loadNotifications()
+  loadNotifications()
+  loadMeta()
 
-    const interval =
-      setInterval(
-        loadNotifications,
-        10000
-      )
+  const shouldOpenModal =
+    localStorage.getItem("openNewLeadModal")
 
-    return () =>
-      clearInterval(interval)
+  if (shouldOpenModal === "true") {
+    setShowModal(true)
+    localStorage.removeItem("openNewLeadModal")
+  }
 
-  }, [])
+  const interval =
+  setInterval(() => {
+
+    loadMeta()
+
+  }, 60000)
+
+  return () =>
+    clearInterval(interval)
+
+}, [])
 
   async function loadNotifications() {
 
@@ -59,30 +73,10 @@ export default function Topbar({
     const notifications =
       response.data
 
-    const lastViewed =
-      localStorage.getItem(
-        "notificationsViewed"
-      )
-
-    if (!lastViewed) {
-
-      setUnreadCount(
-        notifications.length
-      )
-
-      return
-
-    }
-
-    const viewedDate =
-      new Date(lastViewed)
-
     const unread =
       notifications.filter(
         notification =>
-          new Date(
-            notification.created_at
-          ) > viewedDate
+          notification.read === false
       )
 
     setUnreadCount(
@@ -97,7 +91,37 @@ export default function Topbar({
 
 }
 
-  function toggleNotifications() {
+  async function loadMeta() {
+
+  try {
+
+    const response =
+      await api.get(
+        "/checklist"
+      )
+
+    const total =
+      response.data.length
+
+    const percent =
+      Math.min(
+        Math.round(
+          (total / 10) * 100
+        ),
+        100
+      )
+
+    setMetaPercent(percent)
+
+  } catch (err) {
+
+    console.log(err)
+
+  }
+
+}
+
+  async function toggleNotifications() {
 
   const isOpening =
     !showNotifications
@@ -107,14 +131,6 @@ export default function Topbar({
   )
 
   if (isOpening) {
-
-    const now =
-      new Date().toISOString()
-
-    localStorage.setItem(
-      "notificationsViewed",
-      now
-    )
 
     setUnreadCount(0)
 
@@ -185,7 +201,7 @@ export default function Topbar({
                 </p>
 
                 <p className="text-sm font-bold text-white">
-                  74%
+                  {metaPercent}%
                 </p>
 
               </div>

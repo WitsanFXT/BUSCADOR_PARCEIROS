@@ -4,13 +4,19 @@ import {
   useEffect
 } from "react"
 
-import axios from "axios"
+import api from "../services/api"
 
 import {
   Search,
   Building2,
   MapPin,
-  Phone
+  Phone,
+  LayoutDashboard,
+  Users,
+  ClipboardCheck,
+  Bot,
+  Plus,
+  Navigation
 } from "lucide-react"
 
 import {
@@ -79,8 +85,8 @@ export default function GlobalSearch() {
       setLoading(true)
 
       const { data } =
-        await axios.get(
-          `http://localhost:3001/search?q=${encodeURIComponent(value)}`
+        await api.get(
+          `/search?q=${encodeURIComponent(value)}`
         )
 
       setResults(data)
@@ -97,16 +103,81 @@ export default function GlobalSearch() {
 
   }
 
-  function openLead(lead) {
+  function getIcon(item) {
 
-    localStorage.setItem(
-      "crmSearch",
-      lead.city || lead.company_name
-    )
+    if (item.type === "lead") {
+      return <Building2 size={18} className="text-white" />
+    }
+
+    if (item.action === "new-lead") {
+      return <Plus size={18} className="text-white" />
+    }
+
+    if (item.path === "/") {
+      return <LayoutDashboard size={18} className="text-white" />
+    }
+
+    if (item.path === "/crm") {
+      return <Users size={18} className="text-white" />
+    }
+
+    if (item.path === "/checklist") {
+      return <ClipboardCheck size={18} className="text-white" />
+    }
+
+    if (item.path === "/automacao") {
+      return <Bot size={18} className="text-white" />
+    }
+
+    return <Navigation size={18} className="text-white" />
+
+  }
+
+  function getBadge(item) {
+
+    if (item.type === "lead") {
+      return "Lead"
+    }
+
+    if (item.type === "action") {
+      return "Ação"
+    }
+
+    return "Página"
+
+  }
+
+  function openResult(item) {
 
     setResults([])
+    setQuery("")
 
-    navigate("/crm")
+    if (item.type === "lead") {
+
+      localStorage.setItem(
+        "crmSearch",
+        item.lead.city ||
+        item.lead.company_name
+      )
+
+      navigate("/crm")
+      return
+
+    }
+
+    if (item.action === "new-lead") {
+
+      localStorage.setItem(
+        "openNewLeadModal",
+        "true"
+      )
+
+      navigate("/crm")
+      return
+
+    }
+
+    navigate(item.path)
 
   }
 
@@ -126,7 +197,7 @@ export default function GlobalSearch() {
 
         <input
           type="text"
-          placeholder="Buscar empresa, cidade, responsável ou telefone..."
+          placeholder="Buscar leads, páginas, ações ou funções do sistema..."
           value={query}
           onChange={(e) =>
             search(e.target.value)
@@ -151,12 +222,12 @@ export default function GlobalSearch() {
 
           <div className="absolute z-50 w-full bg-slate-900 border border-slate-700 rounded-2xl mt-2 overflow-hidden shadow-2xl">
 
-            {results.map((lead) => (
+            {results.map((item, index) => (
 
               <div
-                key={lead.id}
+                key={`${item.type}-${item.title}-${index}`}
                 onClick={() =>
-                  openLead(lead)
+                  openResult(item)
                 }
                 className="p-4 border-b border-slate-800 hover:bg-slate-800 transition cursor-pointer"
               >
@@ -165,40 +236,45 @@ export default function GlobalSearch() {
 
                   <div className="bg-red-600 p-2 rounded-xl">
 
-                    <Building2
-                      size={18}
-                      className="text-white"
-                    />
+                    {getIcon(item)}
 
                   </div>
 
                   <div className="flex-1">
 
-                    <h3 className="font-bold text-white">
-                      {lead.company_name}
-                    </h3>
+                    <div className="flex items-center justify-between gap-3">
 
-                    <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-400">
+                      <h3 className="font-bold text-white">
+                        {item.title}
+                      </h3>
 
-                      <span className="flex items-center gap-1">
-                        <MapPin size={14} />
-                        {lead.city || "Sem cidade"}
-                      </span>
-
-                      <span className="flex items-center gap-1">
-                        <Phone size={14} />
-                        {lead.phone || "Sem telefone"}
+                      <span className="text-xs bg-blue-600 px-3 py-1 rounded-full text-white">
+                        {getBadge(item)}
                       </span>
 
                     </div>
 
-                    <div className="mt-2">
+                    <p className="text-slate-400 text-sm mt-1">
+                      {item.description}
+                    </p>
 
-                      <span className="text-xs bg-blue-600 px-3 py-1 rounded-full">
-                        {lead.status}
-                      </span>
+                    {item.type === "lead" && (
 
-                    </div>
+                      <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-400">
+
+                        <span className="flex items-center gap-1">
+                          <MapPin size={14} />
+                          {item.lead.city || "Sem cidade"}
+                        </span>
+
+                        <span className="flex items-center gap-1">
+                          <Phone size={14} />
+                          {item.lead.phone || "Sem telefone"}
+                        </span>
+
+                      </div>
+
+                    )}
 
                   </div>
 
@@ -207,6 +283,18 @@ export default function GlobalSearch() {
               </div>
 
             ))}
+
+          </div>
+
+        )}
+
+      {!loading &&
+        query.trim() &&
+        results.length === 0 && (
+
+          <div className="absolute z-50 w-full bg-slate-900 border border-slate-700 rounded-2xl mt-2 p-4 text-slate-400">
+
+            Nenhum resultado encontrado.
 
           </div>
 

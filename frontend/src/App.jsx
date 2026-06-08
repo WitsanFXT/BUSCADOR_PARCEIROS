@@ -11,6 +11,10 @@ import SearchPartners from "./pages/SearchPartners"
 import CRM from "./pages/CRM"
 import Automation from "./pages/Automation"
 import Checklist from "./pages/Checklist"
+import Radar from "./pages/Radar"
+import Agenda from "./pages/Agenda"
+import Missions from "./pages/Missions"
+import ContentCenter from "./pages/ContentCenter"
 
 function App() {
 
@@ -44,6 +48,26 @@ function App() {
           <Route
             path="/checklist"
             element={<Checklist />}
+          />
+
+          <Route
+            path="/radar"
+            element={<Radar />}
+          />
+
+          <Route
+            path="/agenda"
+            element={<Agenda />}
+          />
+
+          <Route
+            path="/missoes"
+            element={<Missions />}
+          />
+
+          <Route
+            path="/conteudo"
+            element={<ContentCenter />}
           />
 
         </Routes>

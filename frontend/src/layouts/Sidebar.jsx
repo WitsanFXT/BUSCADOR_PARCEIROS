@@ -4,7 +4,11 @@ import {
   Users,
   Bot,
   ClipboardCheck,
-  X
+  X,
+  Radar as RadarIcon,
+  CalendarClock,
+  ListChecks,
+  Clapperboard
 } from "lucide-react"
 
 
@@ -45,7 +49,29 @@ export default function Sidebar({
       name: "Checklist",
       path: "/checklist",
       icon: <ClipboardCheck size={20} />
-    }
+    },
+    {
+      name: "Radar",
+      path: "/radar",
+      icon: <RadarIcon size={20} />
+    },
+    {
+      name: "Agenda Inteligente",
+      path: "/agenda",
+      icon: <CalendarClock size={20} />
+    },
+
+    {
+      name: "Missões do Dia",
+      path: "/missoes",
+      icon: <ListChecks size={20} />
+    },
+
+    {
+      name: "Conteúdo",
+      path: "/conteudo",
+      icon: <Clapperboard size={20} />
+    },
 
   ]
 

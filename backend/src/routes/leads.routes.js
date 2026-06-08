@@ -5,6 +5,19 @@ const router = express.Router()
 const supabase =
   require("../config/supabase")
 
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+function normalizePhone(value) {
+  return String(value || "")
+    .replace(/\D/g, "")
+}
+
 /* LISTAR LEADS */
 router.get("/", async (req, res) => {
 
@@ -39,9 +52,6 @@ router.post("/", async (req, res) => {
 
   try {
 
-    console.log("BODY RECEBIDO:")
-    console.log(req.body)
-
     const {
       company_name,
       responsible,
@@ -55,6 +65,73 @@ router.post("/", async (req, res) => {
       notes,
       priority
     } = req.body
+
+    if (!company_name) {
+      return res.status(400).json({
+        error: "Nome da empresa é obrigatório"
+      })
+    }
+
+    const { data: existingLeads, error: searchError } =
+      await supabase
+        .from("leads")
+        .select("*")
+
+    if (searchError) {
+      return res.status(400).json(searchError)
+    }
+
+    const companyNameNormalized =
+      normalizeText(company_name)
+
+    const cityNormalized =
+      normalizeText(city)
+
+    const phoneNormalized =
+      normalizePhone(phone)
+
+    const whatsappNormalized =
+      normalizePhone(whatsapp)
+
+    const duplicatedLead =
+      existingLeads.find(lead => {
+
+        const sameCompany =
+          normalizeText(lead.company_name) ===
+          companyNameNormalized
+
+        const sameCity =
+          cityNormalized &&
+          normalizeText(lead.city) === cityNormalized
+
+        const samePhone =
+          phoneNormalized &&
+          normalizePhone(lead.phone) === phoneNormalized
+
+        const sameWhatsapp =
+          whatsappNormalized &&
+          normalizePhone(lead.whatsapp) === whatsappNormalized
+
+        return (
+          samePhone ||
+          sameWhatsapp ||
+          (
+            sameCompany &&
+            sameCity
+          )
+        )
+
+      })
+
+    if (duplicatedLead) {
+
+      return res.status(409).json({
+        error: "DUPLICATE_LEAD",
+        message: "Este lead já está cadastrado",
+        lead: duplicatedLead
+      })
+
+    }
 
     const { data, error } =
       await supabase
@@ -77,30 +154,23 @@ router.post("/", async (req, res) => {
         .select()
 
     if (error) {
-
-      console.log("ERRO SUPABASE:")
-      console.log(error)
-
       return res.status(400).json(error)
-
     }
 
-    /* CRIA NOTIFICAÇÃO AUTOMÁTICA */
     await supabase
-      .from("notifications")
-      .insert([
-        {
-          title: "Novo Lead",
-          message:
-            `${company_name} foi cadastrado`
-        }
-      ])
+  .from("notifications")
+  .insert([
+    {
+      title: "Novo Lead",
+      message:
+        `${company_name} foi cadastrado`,
+      read: false
+    }
+  ])
 
     res.status(201).json(data)
 
   } catch (err) {
-
-    console.log(err)
 
     res.status(500).json({
       error: err.message

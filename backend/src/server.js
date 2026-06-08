@@ -21,6 +21,18 @@ const notificationsRoutes =
 const checklistRoutes =
   require("./routes/checklist.routes")
 
+const opportunitiesRoutes =
+  require("./routes/opportunities.routes")
+
+const agendaRoutes =
+  require("./routes/agenda.routes")
+
+const missionsRoutes =
+  require("./routes/missions.routes")
+
+const contentRoutes =
+  require("./routes/content.routes")
+
 
 /* CORS */
 app.use(cors({
@@ -65,6 +77,26 @@ app.use(
 app.use(
   "/checklist",
   checklistRoutes
+)
+
+app.use(
+  "/opportunities",
+  opportunitiesRoutes
+)
+
+app.use(
+  "/agenda",
+  agendaRoutes
+)
+
+app.use(
+  "/missions",
+  missionsRoutes
+)
+
+app.use(
+  "/content",
+  contentRoutes
 )
 
 /* ROOT */

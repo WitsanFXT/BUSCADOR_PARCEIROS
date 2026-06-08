@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import axios from "axios"
+import api from "../services/api"
 
 export default function NotificationDropdown() {
 
@@ -9,18 +9,21 @@ export default function NotificationDropdown() {
 
   useEffect(() => {
 
-    loadNotifications()
-    
+    abrirNotificacoes()
 
   }, [])
 
-  async function loadNotifications() {
+  async function abrirNotificacoes() {
 
     try {
 
+      await api.put(
+        "/notifications/read-all"
+      )
+
       const { data } =
-        await axios.get(
-          "http://localhost:3001/notifications"
+        await api.get(
+          "/notifications"
         )
 
       setNotifications(data)
@@ -33,16 +36,19 @@ export default function NotificationDropdown() {
 
   }
 
-
   return (
 
     <div className="absolute right-0 top-16 w-96 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50">
 
-      <div className="p-4 border-b border-slate-800">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
 
         <h2 className="font-bold text-white">
           Notificações
         </h2>
+
+        <span className="text-xs text-slate-400">
+          Últimas 15
+        </span>
 
       </div>
 
@@ -54,36 +60,36 @@ export default function NotificationDropdown() {
 
       ) : (
 
-        notifications.map((item) => (
+        <div className="max-h-[420px] overflow-y-auto">
 
-          <div
-            key={item.id}
-            className={`p-4 border-b border-slate-800 hover:bg-slate-800 ${
-              !item.read
-                ? "bg-slate-800/50"
-                : ""
-            }`}
-          >
+          {notifications.map((item) => (
 
-            <h3 className="font-bold text-white">
-              {item.title}
-            </h3>
+            <div
+              key={item.id}
+              className="p-4 border-b border-slate-800 hover:bg-slate-800"
+            >
 
-            <p className="text-slate-400 text-sm mt-1">
-              {item.message}
-            </p>
+              <h3 className="font-bold text-white">
+                {item.title}
+              </h3>
 
-            <span className="text-xs text-slate-500 mt-2 block">
+              <p className="text-slate-400 text-sm mt-1">
+                {item.message}
+              </p>
 
-              {new Date(
-                item.created_at
-              ).toLocaleString("pt-BR")}
+              <span className="text-xs text-slate-500 mt-2 block">
 
-            </span>
+                {new Date(
+                  item.created_at
+                ).toLocaleString("pt-BR")}
 
-          </div>
+              </span>
 
-        ))
+            </div>
+
+          ))}
+
+        </div>
 
       )}
 

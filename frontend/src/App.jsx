@@ -22,6 +22,9 @@ import AIRecommendations from "./pages/AIRecommendations"
 import FollowupIntelligence from "./pages/FollowupIntelligence"
 import LeadRecovery from "./pages/LeadRecovery"
 import AIAssistant from "./pages/AIAssistant"
+import AIChat from "./pages/AIChat"
+import AIObjections from "./pages/AIObjections"
+import LeadExtractor from "./pages/LeadExtractor"
 
 function App() {
 
@@ -35,6 +38,16 @@ function App() {
           <Route
             path="/"
             element={<Dashboard />}
+          />
+
+          <Route
+            path="/captacao-leads"
+            element={<LeadExtractor />}
+          />
+
+          <Route
+            path="/objeçoes-ia"
+            element={<AIObjections />}
           />
 
           <Route
@@ -60,6 +73,11 @@ function App() {
           <Route
             path="/checklist"
             element={<Checklist />}
+          />
+
+          <Route
+            path="/assistente-chat"
+            element={<AIChat />}
           />
 
           <Route

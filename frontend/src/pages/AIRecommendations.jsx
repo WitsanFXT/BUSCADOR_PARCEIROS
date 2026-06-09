@@ -7,6 +7,7 @@ export default function AIRecommendations() {
   const [generatingId, setGeneratingId] = useState(null)
   const [messagesByLead, setMessagesByLead] = useState({})
   const [actionsByLead, setActionsByLead] = useState({})
+  const [objectiveByLead, setObjectiveByLead] = useState({})
 
   useEffect(() => {
     loadRecommendations()
@@ -85,33 +86,66 @@ export default function AIRecommendations() {
   }
 
   async function generateMessage(item) {
-    try {
-      setGeneratingId(item.lead_id)
+  try {
+    setGeneratingId(item.lead_id)
 
-      const response = await api.post(
-        "/ai/conversion-message",
-        buildLeadPayload(item)
+    const objective =
+      objectiveByLead[item.lead_id] ||
+      "followup"
+
+    const response =
+      await api.post(
+        "/assistant/generate",
+        {
+          objective,
+          lead_id: item.lead_id
+        }
       )
 
-      setMessagesByLead({
-        ...messagesByLead,
-        [item.lead_id]: response.data || []
-      })
+    const aiResult =
+      response.data
 
-      await registerAction(
-        item,
-        "generated_message",
-        "Mensagem gerada pela IA",
-        "O vendedor gerou uma mensagem automática para este lead."
-      )
+    setMessagesByLead({
+      ...messagesByLead,
+      [item.lead_id]: [
+        {
+          type: objective,
+          title:
+            aiResult.title ||
+            "Mensagem IA",
+          message:
+            aiResult.message ||
+            aiResult.answer ||
+            aiResult.variations?.[0] ||
+            ""
+        }
+      ]
+    })
 
-    } catch (err) {
-      console.log(err)
-      alert("Erro ao gerar mensagem")
-    } finally {
-      setGeneratingId(null)
-    }
+    await registerAction(
+      item,
+      "generated_ai_message",
+      `IA gerou ${objective}`,
+      aiResult.message ||
+      aiResult.answer ||
+      aiResult.variations?.[0] ||
+      ""
+    )
+
+  } catch (err) {
+
+    console.log(err)
+
+    alert(
+      "Erro ao gerar conteúdo IA"
+    )
+
+  } finally {
+
+    setGeneratingId(null)
+
   }
+}
 
   function getBestMessage(item) {
     const messages =
@@ -208,6 +242,37 @@ export default function AIRecommendations() {
       </div>
     )
   }
+
+  const objectives = [
+  {
+    value: "first_contact",
+    label: "Primeiro Contato"
+  },
+  {
+    value: "followup",
+    label: "Follow-up"
+  },
+  {
+    value: "recovery",
+    label: "Recuperação"
+  },
+  {
+    value: "simulation",
+    label: "Simulação"
+  },
+  {
+    value: "objection",
+    label: "Objeção"
+  },
+  {
+    value: "closing",
+    label: "Fechamento"
+  },
+  {
+    value: "referral",
+    label: "Indicação"
+  }
+]
 
   return (
     <div className="text-white">
@@ -340,6 +405,35 @@ export default function AIRecommendations() {
                 </div>
 
                 <div className="flex flex-col gap-3 min-w-[190px]">
+
+                <select
+  value={
+    objectiveByLead[item.lead_id] ||
+    "followup"
+  }
+  onChange={(e) =>
+    setObjectiveByLead({
+      ...objectiveByLead,
+      [item.lead_id]:
+        e.target.value
+    })
+  }
+  className="
+    bg-slate-800
+    rounded-xl
+    p-3
+    text-white
+  "
+>
+  {objectives.map(obj => (
+    <option
+      key={obj.value}
+      value={obj.value}
+    >
+      {obj.label}
+    </option>
+  ))}
+</select>
                   <button
                     onClick={() => generateMessage(item)}
                     disabled={generatingId === item.lead_id}

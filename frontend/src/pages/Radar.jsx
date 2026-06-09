@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import api from "../services/api"
 
 export default function Radar() {
-
   const [opportunities, setOpportunities] =
     useState([])
 
@@ -27,54 +26,41 @@ export default function Radar() {
   }, [])
 
   async function loadOpportunities() {
-
     try {
-
       const response =
         await api.get("/opportunities")
 
-      setOpportunities(response.data)
-
+      setOpportunities(response.data || [])
     } catch (err) {
-
       console.log(err)
-
     }
-
   }
 
   function updateField(field, value) {
-
     setForm({
       ...form,
       [field]: value
     })
-
   }
 
   async function createOpportunity() {
-
     try {
-
       if (!form.name.trim()) {
         alert("Informe o nome da oportunidade")
         return
       }
 
-      await api.post(
-        "/opportunities",
-        {
-          ...form,
-          motorcycle_year:
-            form.motorcycle_year
-              ? Number(form.motorcycle_year)
-              : null,
-          mileage:
-            form.mileage
-              ? Number(form.mileage)
-              : null
-        }
-      )
+      await api.post("/opportunities", {
+        ...form,
+        motorcycle_year:
+          form.motorcycle_year
+            ? Number(form.motorcycle_year)
+            : null,
+        mileage:
+          form.mileage
+            ? Number(form.mileage)
+            : null
+      })
 
       setForm({
         name: "",
@@ -92,65 +78,43 @@ export default function Radar() {
       })
 
       loadOpportunities()
-
     } catch (err) {
-
       console.log(err.response?.data || err)
       alert("Erro ao criar oportunidade")
-
     }
-
   }
 
   async function sendToCRM(id) {
-
     try {
-
-      await api.post(
-        `/opportunities/${id}/to-lead`
-      )
+      await api.post(`/opportunities/${id}/to-lead`)
 
       alert("Oportunidade enviada para o CRM!")
 
       loadOpportunities()
-
     } catch (err) {
-
       console.log(err)
       alert("Erro ao enviar para CRM")
-
     }
-
   }
 
   async function deleteOpportunity(id) {
+    const confirmDelete =
+      window.confirm(
+        "Deseja excluir esta oportunidade?"
+      )
 
-  const confirmDelete =
-    window.confirm(
-      "Deseja excluir esta oportunidade?"
-    )
+    if (!confirmDelete) return
 
-  if (!confirmDelete) return
-
-  try {
-
-    await api.delete(
-      `/opportunities/${id}`
-    )
-
-    loadOpportunities()
-
-  } catch (err) {
-
-    console.log(err)
-    alert("Erro ao excluir oportunidade")
-
+    try {
+      await api.delete(`/opportunities/${id}`)
+      loadOpportunities()
+    } catch (err) {
+      console.log(err)
+      alert("Erro ao excluir oportunidade")
+    }
   }
 
-}
-
   function getTemperature(score) {
-
     if (score >= 70) {
       return {
         label: "Quente",
@@ -161,7 +125,7 @@ export default function Radar() {
     if (score >= 40) {
       return {
         label: "Morno",
-        className: "bg-yellow-500"
+        className: "bg-yellow-500 text-black"
       }
     }
 
@@ -169,11 +133,9 @@ export default function Radar() {
       label: "Frio",
       className: "bg-red-600"
     }
-
   }
 
   function getTradeLabel(probability) {
-
     if (probability >= 80) {
       return "Alta chance de troca"
     }
@@ -183,11 +145,9 @@ export default function Radar() {
     }
 
     return "Baixa chance de troca"
-
   }
 
   function generateMessage(item) {
-
     const category =
       item.category || "profissional"
 
@@ -204,18 +164,15 @@ export default function Radar() {
         ? " no trabalho"
         : ""
 
-    return `Olá, tudo bem? Vi que você atua como ${category} em ${city}${motorcycle}${use}. Sou consultor Yamaha e estou ajudando pessoas da região a avaliarem possibilidades de troca por uma moto 0km com parcelas acessíveis. Posso fazer uma simulação sem compromisso para você?`
-
+    return `Olá, tudo bem? Vi que você atua como ${category} em ${city}${motorcycle}${use}. Sou consultor Yamaha e estou ajudando pessoas da região a avaliarem possibilidades de troca por uma moto 0km. Posso fazer uma simulação sem compromisso para você?`
   }
 
   function copyMessage(item) {
-
     navigator.clipboard.writeText(
       generateMessage(item)
     )
 
     alert("Mensagem copiada!")
-
   }
 
   const hot =
@@ -240,11 +197,8 @@ export default function Radar() {
     ).length
 
   return (
-
     <div className="space-y-6 text-white">
-
       <div>
-
         <h1 className="text-4xl font-bold">
           Radar de Oportunidades
         </h1>
@@ -252,15 +206,14 @@ export default function Radar() {
         <p className="text-slate-400 mt-2">
           Identifique quem tem maior chance de trocar de moto nos próximos meses.
         </p>
-
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
         <div className="bg-green-600 rounded-3xl p-5">
           <p className="text-sm opacity-80">
             Leads Quentes
           </p>
+
           <h2 className="text-4xl font-bold mt-2">
             {hot}
           </h2>
@@ -270,6 +223,7 @@ export default function Radar() {
           <p className="text-sm opacity-80">
             Leads Mornos
           </p>
+
           <h2 className="text-4xl font-bold mt-2">
             {warm}
           </h2>
@@ -279,6 +233,7 @@ export default function Radar() {
           <p className="text-sm opacity-80">
             Leads Frios
           </p>
+
           <h2 className="text-4xl font-bold mt-2">
             {cold}
           </h2>
@@ -288,21 +243,19 @@ export default function Radar() {
           <p className="text-sm opacity-80">
             Alta Chance de Troca
           </p>
+
           <h2 className="text-4xl font-bold mt-2">
             {highTrade}
           </h2>
         </div>
-
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-
         <h2 className="text-2xl font-bold mb-5">
           Nova Oportunidade
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-
           <input
             placeholder="Nome / Empresa"
             value={form.name}
@@ -326,6 +279,7 @@ export default function Radar() {
             <option>Empresa</option>
             <option>Google Maps</option>
             <option>Manual</option>
+            <option>Captação IA</option>
           </select>
 
           <select
@@ -346,6 +300,8 @@ export default function Radar() {
             <option>Empresa</option>
             <option>Fazenda</option>
             <option>Pessoa Física</option>
+            <option>Uso profissional</option>
+            <option>Lead captado</option>
           </select>
 
           <input
@@ -419,19 +375,19 @@ export default function Radar() {
           </select>
 
           <label className="bg-slate-800 p-3 rounded-xl flex items-center gap-3">
-
             <input
               type="checkbox"
               checked={form.professional_use}
               onChange={(e) =>
-                updateField("professional_use", e.target.checked)
+                updateField(
+                  "professional_use",
+                  e.target.checked
+                )
               }
             />
 
             Usa moto para trabalho
-
           </label>
-
         </div>
 
         <textarea
@@ -449,36 +405,34 @@ export default function Radar() {
         >
           Cadastrar Oportunidade
         </button>
-
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-
         <h2 className="text-2xl font-bold mb-5">
           Oportunidades Encontradas
         </h2>
 
-        <div className="space-y-4">
-
+        <div className="space-y-5">
           {opportunities.map(item => {
-
             const temp =
-              getTemperature(item.score)
+              getTemperature(item.score || 0)
 
             return (
-
               <div
                 key={item.id}
-                className="bg-slate-800 rounded-2xl p-5"
+                className="
+                  bg-slate-800
+                  rounded-2xl
+                  p-5
+                  border
+                  border-slate-700
+                  overflow-hidden
+                "
               >
-
-                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-
+                <div className="flex flex-col gap-5">
                   <div>
-
                     <div className="flex flex-wrap items-center gap-3">
-
-                      <h3 className="text-xl font-bold">
+                      <h3 className="text-xl font-bold break-words">
                         {item.name}
                       </h3>
 
@@ -489,78 +443,115 @@ export default function Radar() {
                       <span className="bg-blue-600 px-3 py-1 rounded-full text-xs font-bold">
                         {item.trade_probability || 0}% troca
                       </span>
-
                     </div>
 
-                    <p className="text-slate-400 mt-2">
-                      {item.source} • {item.category} • {item.city || "Sem cidade"}
+                    <p className="text-slate-400 mt-2 break-words">
+                      {item.source || "Sem fonte"} • {item.category || "Sem categoria"} • {item.city || "Sem cidade"}
                     </p>
 
                     <p className="text-slate-300 text-sm mt-2">
                       {getTradeLabel(item.trade_probability || 0)}
                     </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-sm text-slate-400">
-
-                      <p>
-                        Moto atual: {item.current_motorcycle || "-"}
-                      </p>
-
-                      <p>
-                        Ano: {item.motorcycle_year || "-"}
-                      </p>
-
-                      <p>
-                        KM: {item.mileage || "-"}
-                      </p>
-
-                      <p>
-                        Uso profissional: {item.professional_use ? "Sim" : "Não"}
-                      </p>
-
-                      <p>
-                        Prazo: {item.purchase_timeline || "-"}
-                      </p>
-
-                      <p>
-                        Score: {item.score}
-                      </p>
-
-                    </div>
-
-                    {item.notes && (
-                      <p className="text-slate-300 mt-3">
-                        {item.notes}
-                      </p>
-                    )}
-
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 text-sm">
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        Moto atual
+                      </p>
 
+                      <p className="text-slate-200 break-words">
+                        {item.current_motorcycle || "-"}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        Ano
+                      </p>
+
+                      <p className="text-slate-200">
+                        {item.motorcycle_year || "-"}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        KM
+                      </p>
+
+                      <p className="text-slate-200">
+                        {item.mileage || "-"}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        Uso profissional
+                      </p>
+
+                      <p className="text-slate-200">
+                        {item.professional_use ? "Sim" : "Não"}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        Prazo
+                      </p>
+
+                      <p className="text-slate-200">
+                        {item.purchase_timeline || "-"}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3">
+                      <p className="text-slate-500">
+                        Score
+                      </p>
+
+                      <p className="text-slate-200">
+                        {item.score || 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {item.notes && (
+                    <div className="bg-slate-900 rounded-xl p-4">
+                      <p className="text-slate-500 text-sm font-bold mb-2">
+                        Observações
+                      </p>
+
+                      <p className="text-slate-300 whitespace-pre-line break-words text-sm leading-relaxed">
+                        {item.notes}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                     <button
                       onClick={() =>
                         copyMessage(item)
                       }
-                      className="bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-xl font-bold"
+                      className="bg-blue-600 hover:bg-blue-700 w-full px-4 py-3 rounded-xl font-bold text-center"
                     >
                       Copiar Abordagem
                     </button>
 
                     <button
-                     onClick={() =>
+                      onClick={() =>
                         deleteOpportunity(item.id)
-                     }
-                     className="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-xl font-bold"
+                      }
+                      className="bg-red-600 hover:bg-red-700 w-full px-4 py-3 rounded-xl font-bold text-center"
                     >
-                    Excluir
+                      Excluir
                     </button>
 
                     <button
                       onClick={() =>
                         sendToCRM(item.id)
                       }
-                      className="bg-green-600 hover:bg-green-700 px-4 py-3 rounded-xl font-bold"
+                      className="bg-green-600 hover:bg-green-700 w-full px-4 py-3 rounded-xl font-bold text-center"
                     >
                       Enviar ao CRM
                     </button>
@@ -570,44 +561,31 @@ export default function Radar() {
                         href={`https://wa.me/55${item.phone.replace(/\D/g, "")}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-xl font-bold text-center"
+                        className="bg-slate-700 hover:bg-slate-600 w-full px-4 py-3 rounded-xl font-bold text-center"
                       >
                         WhatsApp
                       </a>
                     ) : (
                       <button
                         disabled
-                        className="bg-slate-700 opacity-50 px-4 py-3 rounded-xl font-bold"
+                        className="bg-slate-700/50 w-full px-4 py-3 rounded-xl font-bold text-center text-slate-400"
                       >
                         Sem WhatsApp
                       </button>
                     )}
-
-
                   </div>
-
                 </div>
-
               </div>
-
             )
-
           })}
 
           {opportunities.length === 0 && (
-
             <div className="text-center text-slate-400 py-10">
               Nenhuma oportunidade cadastrada ainda.
             </div>
-
           )}
-
         </div>
-
       </div>
-
     </div>
-
   )
-
 }

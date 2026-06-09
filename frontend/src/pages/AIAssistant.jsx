@@ -5,6 +5,7 @@ import api from "../services/api"
 export default function AIAssistant() {
   const [assistant, setAssistant] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [coach, setCoach] = useState(null)
 
   const navigate = useNavigate()
 
@@ -14,10 +15,17 @@ export default function AIAssistant() {
 
   async function loadAssistant() {
     try {
-      const response =
-        await api.get("/assistant/home")
+      const [
+  homeResponse,
+  coachResponse
+] =
+  await Promise.all([
+    api.get("/assistant/home"),
+    api.get("/assistant/coach")
+  ])
 
-      setAssistant(response.data)
+setAssistant(homeResponse.data)
+setCoach(coachResponse.data)
     } catch (err) {
       console.log(err)
     } finally {
@@ -260,6 +268,116 @@ export default function AIAssistant() {
             ))}
           </div>
         </div>
+
+        {coach && (
+  <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6">
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+      <div>
+        <h2 className="text-2xl font-bold">
+          AutoCoach Comercial
+        </h2>
+
+        <p className="text-slate-400 mt-2">
+          Diagnóstico da sua operação comercial hoje.
+        </p>
+      </div>
+
+      <div className="bg-blue-600 px-5 py-3 rounded-2xl font-black text-xl">
+        Score {coach.score}
+      </div>
+    </div>
+
+    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-5">
+      <h3 className="font-bold text-lg">
+        Diagnóstico
+      </h3>
+
+      <p className="text-slate-300 mt-2">
+        {coach.diagnosis}
+      </p>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
+        <h3 className="font-bold text-green-400">
+          Pontos fortes
+        </h3>
+
+        <div className="space-y-2 mt-3">
+          {(coach.strengths || []).map((item, index) => (
+            <p
+              key={index}
+              className="text-slate-300 text-sm"
+            >
+              ✓ {item}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
+        <h3 className="font-bold text-red-400">
+          Pontos de atenção
+        </h3>
+
+        <div className="space-y-2 mt-3">
+          {(coach.problems || []).map((item, index) => (
+            <p
+              key={index}
+              className="text-slate-300 text-sm"
+            >
+              ⚠ {item}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
+        <h3 className="font-bold text-blue-400">
+          Próximas 2 horas
+        </h3>
+
+        <div className="space-y-2 mt-3">
+          {(coach.next_2_hours || []).map((item, index) => (
+            <p
+              key={index}
+              className="text-slate-300 text-sm"
+            >
+              {index + 1}. {item}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
+        <h3 className="font-bold text-yellow-400">
+          Metas de hoje
+        </h3>
+
+        <div className="space-y-2 mt-3">
+          {(coach.daily_targets || []).map((item, index) => (
+            <p
+              key={index}
+              className="text-slate-300 text-sm"
+            >
+              🎯 {item}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mt-5">
+      <h3 className="font-bold">
+        Conselho da gestora IA
+      </h3>
+
+      <p className="text-slate-300 mt-2">
+        {coach.manager_advice}
+      </p>
+    </div>
+  </div>
+)}
 
         <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6">
           <h2 className="text-2xl font-bold mb-5">

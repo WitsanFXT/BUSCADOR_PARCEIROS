@@ -9,6 +9,7 @@ const {
   generateAIResponse
 } = require("../services/aiEngine.service")
 
+
 function todayDate() {
   return new Date()
     .toISOString()
@@ -826,5 +827,720 @@ router.post("/generate", async (req, res) => {
     })
   }
 })
+
+router.post("/chat", async (req, res) => {
+  try {
+    const {
+      message
+    } = req.body
+
+    if (!message) {
+      return res.status(400).json({
+        error: "message é obrigatório"
+      })
+    }
+
+    const today =
+      todayDate()
+
+    const { data: leads } =
+      await supabase
+        .from("leads")
+        .select("*")
+
+    const { data: followups } =
+      await supabase
+        .from("followups")
+        .select("*")
+        .eq("status", "Pendente")
+        .lte("next_contact_date", today)
+
+    const { data: actionsToday } =
+      await supabase
+        .from("commercial_actions")
+        .select("*")
+        .gte("created_at", `${today}T00:00:00`)
+
+    const hotLeads =
+      (leads || []).filter(
+        lead =>
+          lead.lead_temperature === "Quente" ||
+          (lead.lead_score || 0) >= 70
+      )
+
+    const topLeads =
+      hotLeads
+        .sort(
+          (a, b) =>
+            (b.lead_score || 0) -
+            (a.lead_score || 0)
+        )
+        .slice(0, 5)
+        .map(
+          lead =>
+            `${lead.company_name} | Score ${lead.lead_score || 0} | ${lead.lead_temperature || "Sem temperatura"}`
+        )
+        .join("\n")
+
+    const systemContext =
+      `
+Resumo atual:
+- Leads totais: ${(leads || []).length}
+- Leads quentes: ${hotLeads.length}
+- Follow-ups pendentes: ${(followups || []).length}
+- Ações registradas hoje: ${(actionsToday || []).length}
+
+Top leads:
+${topLeads || "Nenhum lead quente encontrado."}
+`
+
+    const result =
+      await generateAIResponse({
+        objective: "chat",
+        lead: null,
+        actions: [],
+        extra: {
+          message,
+          system_context: systemContext
+        }
+      })
+
+    res.json(result)
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.post("/predict", async (req, res) => {
+  try {
+    const {
+      lead_id,
+      lead,
+      context
+    } = req.body
+
+    let leadData =
+      lead || null
+
+    let actions = []
+
+    if (lead_id) {
+      const { data, error } =
+        await supabase
+          .from("leads")
+          .select("*")
+          .eq("id", lead_id)
+          .single()
+
+      if (error) {
+        return res.status(400).json(error)
+      }
+
+      leadData = data
+
+      const { data: actionsData } =
+        await supabase
+          .from("commercial_actions")
+          .select("*")
+          .eq("lead_id", lead_id)
+          .order("created_at", {
+            ascending: false
+          })
+          .limit(10)
+
+      actions = actionsData || []
+    }
+
+    const result =
+      await generateAIResponse({
+        objective: "prediction",
+        lead: leadData,
+        actions,
+        extra: {
+          context: context || ""
+        }
+      })
+
+    res.json(result)
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.get("/coach", async (req, res) => {
+  try {
+    const today =
+      todayDate()
+
+    const { data: leads } =
+      await supabase
+        .from("leads")
+        .select("*")
+
+    const { data: funnel } =
+      await supabase
+        .from("sales_funnel")
+        .select("*")
+
+    const { data: actionsToday } =
+      await supabase
+        .from("commercial_actions")
+        .select("*")
+        .gte("created_at", `${today}T00:00:00`)
+
+    const { data: followups } =
+      await supabase
+        .from("followups")
+        .select("*")
+        .eq("status", "Pendente")
+        .lte("next_contact_date", today)
+
+    const { data: opportunities } =
+      await supabase
+        .from("opportunities")
+        .select("*")
+
+    const hotLeads =
+      (leads || []).filter(
+        lead =>
+          lead.lead_temperature === "Quente" ||
+          (lead.lead_score || 0) >= 70
+      )
+
+    const funnelItems =
+      funnel || []
+
+    const simulations =
+      funnelItems.filter(
+        item =>
+          item.current_stage === "Simulação Enviada"
+      )
+
+    const interested =
+      funnelItems.filter(
+        item =>
+          item.current_stage === "Interessado"
+      )
+
+    const lost =
+      funnelItems.filter(
+        item =>
+          item.current_stage === "Perdido"
+      )
+
+    const sales =
+      funnelItems.filter(
+        item =>
+          item.current_stage === "Venda Realizada"
+      )
+
+    let score = 70
+
+    if (hotLeads.length >= 3) score += 10
+    if ((actionsToday || []).length >= 10) score += 10
+    if ((followups || []).length > 0) score -= 10
+    if (lost.length > sales.length && lost.length > 0) score -= 10
+    if ((opportunities || []).length >= 5) score += 5
+
+    score =
+      Math.max(
+        0,
+        Math.min(score, 100)
+      )
+
+    const strengths = []
+    const problems = []
+    const next2Hours = []
+    const dailyTargets = []
+
+    if (hotLeads.length) {
+      strengths.push(
+        `Você tem ${hotLeads.length} lead(s) quente(s) para trabalhar.`
+      )
+    }
+
+    if ((opportunities || []).length) {
+      strengths.push(
+        `Existem ${opportunities.length} oportunidade(s) no Radar para explorar.`
+      )
+    }
+
+    if ((actionsToday || []).length >= 5) {
+      strengths.push(
+        `Você já registrou ${actionsToday.length} ação(ões) comerciais hoje.`
+      )
+    }
+
+    if ((followups || []).length) {
+      problems.push(
+        `Você possui ${followups.length} follow-up(s) vencido(s) ou para hoje.`
+      )
+
+      next2Hours.push(
+        "Resolver todos os follow-ups pendentes antes de prospectar novos leads."
+      )
+    }
+
+    if (interested.length) {
+      problems.push(
+        `${interested.length} cliente(s) estão interessados e precisam ser conduzidos para simulação.`
+      )
+
+      next2Hours.push(
+        "Enviar simulação para clientes na etapa Interessado."
+      )
+    }
+
+    if (simulations.length) {
+      problems.push(
+        `${simulations.length} simulação(ões) foram enviadas e precisam de retorno.`
+      )
+
+      next2Hours.push(
+        "Fazer follow-up das simulações enviadas."
+      )
+    }
+
+    if (lost.length > sales.length && lost.length > 0) {
+      problems.push(
+        "Há mais clientes perdidos do que vendas realizadas no funil."
+      )
+    }
+
+    next2Hours.push(
+      "Falar com os 3 leads de maior score."
+    )
+
+    next2Hours.push(
+      "Gerar pelo menos 5 novas conversas no Radar."
+    )
+
+    dailyTargets.push(
+      "10 novas conversas comerciais."
+    )
+
+    dailyTargets.push(
+      "5 follow-ups concluídos."
+    )
+
+    dailyTargets.push(
+      "3 simulações enviadas."
+    )
+
+    dailyTargets.push(
+      "1 conteúdo publicado no WhatsApp Status."
+    )
+
+    const diagnosis =
+      score >= 85
+        ? "Sua operação está forte hoje. O foco deve ser acelerar fechamento."
+        : score >= 70
+          ? "Sua operação está boa, mas existem pontos que precisam de ação rápida."
+          : score >= 50
+            ? "Sua operação está em atenção. Existem gargalos que podem comprometer vendas."
+            : "Sua operação está crítica. É necessário retomar follow-ups e gerar novas conversas imediatamente."
+
+    const managerAdvice =
+      (followups || []).length
+        ? "Antes de buscar novos leads, resolva os follow-ups pendentes. Lead sem retorno perde temperatura rapidamente."
+        : hotLeads.length
+          ? "Você já tem oportunidades boas. Ataque primeiro os leads quentes e só depois foque em prospecção."
+          : "Hoje o foco deve ser gerar demanda: Radar, indicações, marketplace e conteúdo."
+
+    res.json({
+      title:
+        "AutoCoach Comercial",
+      score,
+      diagnosis,
+      strengths,
+      problems,
+      next_2_hours:
+        next2Hours,
+      daily_targets:
+        dailyTargets,
+      manager_advice:
+        managerAdvice
+    })
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.post("/extract-leads", async (req, res) => {
+  try {
+    const { text, source, city } = req.body
+
+    if (!text) {
+      return res.status(400).json({
+        error: "text é obrigatório"
+      })
+    }
+
+    const result =
+      await generateAIResponse({
+        objective: "extract_leads",
+        lead: null,
+        actions: [],
+        extra: {
+          text,
+          source,
+          city
+        }
+      })
+
+    const leadsToInsert =
+      (result.leads || []).map((lead) => ({
+        source: source || lead.lead_source || "Manual",
+        source_text: text,
+        original_comment:
+          lead.original_comment || "",
+        name:
+          lead.name || "",
+        phone:
+          lead.phone || "",
+        instagram:
+          lead.instagram || "",
+        city:
+          lead.city || city || "",
+        interest:
+          lead.interest || "",
+        current_motorcycle:
+          lead.current_motorcycle || "",
+        professional_use:
+          lead.professional_use || false,
+        lead_score:
+          lead.lead_score || 0,
+        reason:
+          lead.reason || "",
+        review_status:
+          "pending"
+      }))
+
+    if (!leadsToInsert.length) {
+      return res.json({
+        title: "Nenhum lead encontrado",
+        leads: []
+      })
+    }
+
+    const { data, error } =
+      await supabase
+        .from("extracted_leads")
+        .insert(leadsToInsert)
+        .select()
+
+    if (error) {
+      console.log("Erro ao salvar extracted_leads:", error)
+
+      return res.status(400).json(error)
+    }
+
+    res.status(201).json({
+      title: result.title || "Leads extraídos",
+      summary: result.summary || "",
+      leads: data
+    })
+
+  } catch (err) {
+    console.log("Erro em /assistant/extract-leads:", err)
+
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.get("/extracted-leads", async (req, res) => {
+  try {
+    const status =
+      req.query.status || "pending"
+
+    const { data, error } =
+      await supabase
+        .from("extracted_leads")
+        .select("*")
+        .eq("review_status", status)
+        .order("created_at", {
+          ascending: false
+        })
+
+    if (error) {
+      return res.status(400).json(error)
+    }
+
+    res.json(data)
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.put("/extracted-leads/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+
+    const allowed = [
+      "pending",
+      "approved",
+      "rejected",
+      "later",
+      "sent_crm",
+      "sent_radar"
+    ]
+
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        error: "status inválido"
+      })
+    }
+
+    const { data, error } =
+      await supabase
+        .from("extracted_leads")
+        .update({
+          review_status: status
+        })
+        .eq("id", id)
+        .select()
+
+    if (error) {
+      return res.status(400).json(error)
+    }
+
+    res.json(data)
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.post("/extracted-leads/:id/send-crm", async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const { data: extracted, error: findError } =
+      await supabase
+        .from("extracted_leads")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+    if (findError) {
+      return res.status(400).json(findError)
+    }
+
+    const { data: lead, error: leadError } =
+      await supabase
+        .from("leads")
+        .insert([
+          {
+            company_name:
+              extracted.name || "Lead extraído",
+            responsible:
+              extracted.name || "",
+            phone:
+              extracted.phone || "",
+            whatsapp:
+              extracted.phone || "",
+            instagram:
+              extracted.instagram || "",
+            city:
+              extracted.city || "",
+            interest:
+              extracted.interest || "",
+            current_motorcycle:
+              extracted.current_motorcycle || "",
+            professional_use:
+              extracted.professional_use || false,
+            lead_source:
+              extracted.source || "Captação IA",
+            lead_score:
+              extracted.lead_score || 0,
+            lead_temperature:
+              extracted.lead_score >= 70
+                ? "Quente"
+                : extracted.lead_score >= 40
+                  ? "Morno"
+                  : "Frio",
+            notes:
+              extracted.reason || "",
+            status:
+              "Novo Lead",
+            priority:
+              extracted.lead_score >= 70
+                ? "Alta"
+                : "Média"
+          }
+        ])
+        .select()
+
+    if (leadError) {
+      return res.status(400).json(leadError)
+    }
+
+    await supabase
+      .from("extracted_leads")
+      .update({
+        review_status: "sent_crm"
+      })
+      .eq("id", id)
+
+    res.status(201).json(lead)
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
+router.post("/extracted-leads/:id/send-radar", async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const { data: extracted, error: extractedError } =
+      await supabase
+        .from("extracted_leads")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+    if (extractedError || !extracted) {
+      return res.status(404).json({
+        error: "Lead extraído não encontrado"
+      })
+    }
+
+    const opportunityData = {
+      name:
+        extracted.name ||
+        "Lead captado pela IA",
+
+      source:
+        extracted.source ||
+        "Captação IA",
+
+      city:
+        extracted.city || "",
+
+      category:
+        extracted.professional_use
+          ? "Uso profissional"
+          : "Lead captado",
+
+      phone:
+        extracted.phone || "",
+
+      instagram:
+        extracted.instagram || "",
+
+      status:
+        "Novo",
+
+      notes:
+        [
+          extracted.interest
+            ? `Interesse: ${extracted.interest}`
+            : null,
+
+          extracted.current_motorcycle
+            ? `Moto atual: ${extracted.current_motorcycle}`
+            : null,
+
+          extracted.reason
+            ? `Motivo IA: ${extracted.reason}`
+            : null,
+
+          extracted.source_text
+            ? `Origem: ${extracted.source_text}`
+            : null
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+
+      score:
+        extracted.lead_score || 0,
+
+      trade_probability:
+        extracted.lead_score || 0,
+
+      professional_use:
+        extracted.professional_use || false,
+
+      purchase_timeline:
+        "Sem previsão",
+
+      current_motorcycle:
+        extracted.current_motorcycle || ""
+    }
+
+    const {
+      data: opportunity,
+      error: opportunityError
+    } =
+      await supabase
+        .from("opportunities")
+        .insert([opportunityData])
+        .select()
+
+    if (opportunityError) {
+      return res.status(400).json({
+        error:
+          opportunityError.message
+      })
+    }
+
+    const {
+      error: updateError
+    } =
+      await supabase
+        .from("extracted_leads")
+        .update({
+          review_status:
+            "sent_radar"
+        })
+        .eq("id", id)
+
+    if (updateError) {
+      return res.status(400).json({
+        error:
+          updateError.message
+      })
+    }
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Lead enviado para o Radar com sucesso.",
+      opportunity:
+        opportunity?.[0]
+    })
+
+  } catch (err) {
+    console.log(
+      "Erro send-radar:",
+      err
+    )
+
+    res.status(500).json({
+      error: err.message
+    })
+  }
+})
+
 
 module.exports = router

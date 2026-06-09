@@ -20,6 +20,19 @@ export default function SalesFunnel() {
   const [draggedItem, setDraggedItem] =
     useState(null)
 
+  const [predictions, setPredictions] =
+  useState({})
+
+  const [predictingId, setPredictingId] =
+  useState(null)
+
+  const [generatingAI, setGeneratingAI] =
+  useState(null)
+
+  const [aiMessages, setAiMessages] =
+  useState({})
+  
+
   const [form, setForm] =
     useState({
       customer_name: "",
@@ -146,6 +159,126 @@ export default function SalesFunnel() {
       alert("Erro ao remover do funil")
     }
   }
+
+  async function generateStageMessage(item) {
+  try {
+
+    setGeneratingAI(item.id)
+
+    let objective =
+      "followup"
+
+    switch (item.current_stage) {
+
+      case "Lead Encontrado":
+        objective = "first_contact"
+        break
+
+      case "Primeiro Contato":
+        objective = "followup"
+        break
+
+      case "Interessado":
+        objective = "simulation"
+        break
+
+      case "Simulação Enviada":
+        objective = "objection"
+        break
+
+      case "Documentação":
+        objective = "closing"
+        break
+
+      case "Análise de Crédito":
+        objective = "closing"
+        break
+
+      case "Perdido":
+        objective = "recovery"
+        break
+
+      default:
+        objective = "followup"
+    }
+
+    const response =
+  await api.post(
+    "/assistant/generate",
+    {
+      objective,
+      extra: {
+        stage: item.current_stage,
+        context: `
+Cliente: ${item.customer_name}
+Telefone: ${item.phone || "Não informado"}
+Cidade: ${item.city || "Não informada"}
+Interesse: ${item.motorcycle_interest || "Não informado"}
+Etapa do funil: ${item.current_stage}
+Observações: ${item.notes || "Nenhuma"}
+        `
+      }
+    }
+  )
+
+    setAiMessages(prev => ({
+      ...prev,
+      [item.id]:
+        response.data
+    }))
+
+  } catch (err) {
+
+    console.log(err)
+
+    alert(
+      "Erro ao gerar mensagem IA"
+    )
+
+  } finally {
+
+    setGeneratingAI(null)
+
+  }
+}
+
+async function predictLead(item) {
+  try {
+    setPredictingId(item.id)
+
+    const response =
+      await api.post(
+        "/assistant/predict",
+        {
+          lead: {
+            company_name:
+              item.customer_name,
+            city:
+              item.city,
+            interest:
+              item.motorcycle_interest,
+            lead_score:
+              item.probability || 0,
+            status:
+              item.current_stage
+          },
+          context:
+            `Lead na etapa ${item.current_stage}. Observações: ${item.notes || "Nenhuma"}`
+        }
+      )
+
+    setPredictions(prev => ({
+      ...prev,
+      [item.id]: response.data
+    }))
+
+  } catch (err) {
+    console.log(err)
+    alert("Erro ao analisar lead")
+  } finally {
+    setPredictingId(null)
+  }
+}
 
   function getStageItems(stage) {
     return items.filter(item =>
@@ -418,6 +551,82 @@ export default function SalesFunnel() {
 
                         )}
 
+                        {aiMessages[item.id] && (
+
+  <div className="
+    mt-4
+    bg-slate-900
+    border
+    border-slate-700
+    rounded-xl
+    p-3
+  ">
+
+    <p className="
+      text-xs
+      text-slate-400
+      mb-2
+      font-bold
+    ">
+      Sugestão IA
+    </p>
+
+    <p className="
+      text-sm
+      text-slate-200
+      whitespace-pre-line
+    ">
+      {
+        aiMessages[item.id].message ||
+aiMessages[item.id].answer ||
+aiMessages[item.id].variations?.[0] ||
+aiMessages[item.id].advice ||
+""
+      }
+    </p>
+
+  </div>
+
+)}
+
+{predictions[item.id] && (
+  <div className="mt-4 bg-slate-950 border border-blue-700 rounded-xl p-3">
+    <p className="text-blue-400 text-xs font-bold mb-2">
+      Análise Preditiva IA
+    </p>
+
+    <div className="space-y-2 text-sm text-slate-200">
+      <p>
+        🎯 <strong>Chance:</strong>{" "}
+        {predictions[item.id].closing_chance}%
+      </p>
+
+      <p>
+        ⚠️ <strong>Risco:</strong>{" "}
+        {predictions[item.id].risk_level}
+      </p>
+
+      <p>
+        📲 <strong>Canal:</strong>{" "}
+        {predictions[item.id].best_channel}
+      </p>
+
+      <p>
+        🚀 <strong>Próxima ação:</strong>{" "}
+        {predictions[item.id].next_action}
+      </p>
+
+      {predictions[item.id].best_approach && (
+        <p className="text-slate-400">
+          <strong>Abordagem:</strong>{" "}
+          {predictions[item.id].best_approach}
+        </p>
+      )}
+    </div>
+  </div>
+)}
+
+
                       </div>
 
                       <div className="grid grid-cols-1 gap-2 mt-5">
@@ -458,6 +667,44 @@ export default function SalesFunnel() {
                           ))}
 
                         </select>
+
+<button
+  onClick={() =>
+    predictLead(item)
+  }
+  disabled={
+    predictingId === item.id
+  }
+  className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded-xl font-bold text-sm disabled:opacity-50"
+>
+  {predictingId === item.id
+    ? "Analisando..."
+    : "Análise IA"}
+</button>
+
+                        <button
+  onClick={() =>
+    generateStageMessage(item)
+  }
+  disabled={
+    generatingAI === item.id
+  }
+  className="
+    w-full
+    bg-purple-600
+    hover:bg-purple-700
+    p-2
+    rounded-xl
+    font-bold
+    text-sm
+  "
+>
+  {
+    generatingAI === item.id
+      ? "Gerando..."
+      : "IA Próxima Ação"
+  }
+</button>
 
                         <button
                           onClick={() =>

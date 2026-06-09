@@ -14,7 +14,10 @@ import {
   BrainCircuit,
   AlarmClock,
   RefreshCcw,
-  Sparkles
+  Sparkles,
+  MessagesSquare,
+  MessageCircleQuestion,
+  ScanSearch
 } from "lucide-react"
 
 import {
@@ -38,6 +41,12 @@ export default function Sidebar({
           name: "Dashboard",
           path: "/",
           icon: <LayoutDashboard size={20} />
+        },
+
+        {
+          name: "Chat IA",
+          path: "/assistente-chat",
+          icon: <MessagesSquare size={20} />
         },
 
         {
@@ -67,6 +76,13 @@ export default function Sidebar({
       path: "/funil",
       icon: <GitBranch size={20} />
     },
+
+    {
+      name: "Objeções IA",
+      path: "/objeçoes-ia",
+      icon: <MessageCircleQuestion size={20} />
+    },
+
     {
       name: "Prioridades IA",
       path: "/ia-prioridades",
@@ -87,6 +103,12 @@ export default function Sidebar({
           name: "Radar",
           path: "/radar",
           icon: <RadarIcon size={20} />
+        },
+
+        {
+          name: "Captação IA",
+          path: "/captacao-leads",
+          icon: <ScanSearch size={20} />
         },
 
         {

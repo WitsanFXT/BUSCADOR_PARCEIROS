@@ -5,6 +5,11 @@ const router = express.Router()
 const supabase =
   require("../config/supabase")
 
+const {
+  calculateLeadScore,
+  getLeadTemperature
+} = require("../utils/leadScore")
+
 function normalizeText(value) {
   return String(value || "")
     .trim()
@@ -63,7 +68,13 @@ router.post("/", async (req, res) => {
       status,
       interest,
       notes,
-      priority
+      priority,
+      current_motorcycle,
+      motorcycle_year,
+      mileage,
+      professional_use,
+      lead_source,
+      purchase_timeline
     } = req.body
 
     if (!company_name) {
@@ -133,22 +144,49 @@ router.post("/", async (req, res) => {
 
     }
 
+    const leadPayload = {
+      company_name,
+      responsible,
+      phone,
+      whatsapp,
+      instagram,
+      address,
+      city,
+      status: status || "Novo Lead",
+      interest,
+      notes,
+      priority: priority || "Média",
+      current_motorcycle,
+      motorcycle_year:
+        motorcycle_year
+          ? Number(motorcycle_year)
+          : null,
+      mileage:
+        mileage
+          ? Number(mileage)
+          : null,
+      professional_use:
+        professional_use || false,
+      lead_source:
+        lead_source || "Manual",
+      purchase_timeline:
+        purchase_timeline || "Sem previsão"
+    }
+
+    const lead_score =
+      calculateLeadScore(leadPayload)
+
+    const lead_temperature =
+      getLeadTemperature(lead_score)
+
     const { data, error } =
       await supabase
         .from("leads")
         .insert([
           {
-            company_name,
-            responsible,
-            phone,
-            whatsapp,
-            instagram,
-            address,
-            city,
-            status,
-            interest,
-            notes,
-            priority
+            ...leadPayload,
+            lead_score,
+            lead_temperature
           }
         ])
         .select()
@@ -158,15 +196,15 @@ router.post("/", async (req, res) => {
     }
 
     await supabase
-  .from("notifications")
-  .insert([
-    {
-      title: "Novo Lead",
-      message:
-        `${company_name} foi cadastrado`,
-      read: false
-    }
-  ])
+      .from("notifications")
+      .insert([
+        {
+          title: "Novo Lead",
+          message:
+            `${company_name} foi cadastrado`,
+          read: false
+        }
+      ])
 
     res.status(201).json(data)
 
@@ -185,12 +223,39 @@ router.put("/:id", async (req, res) => {
 
   try {
 
-    const { id } = req.params
+    const { id } =
+      req.params
+
+    const { data: currentLead, error: findError } =
+      await supabase
+        .from("leads")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+    if (findError) {
+      return res.status(400).json(findError)
+    }
+
+    const updatedPayload = {
+      ...currentLead,
+      ...req.body
+    }
+
+    const lead_score =
+      calculateLeadScore(updatedPayload)
+
+    const lead_temperature =
+      getLeadTemperature(lead_score)
 
     const { data, error } =
       await supabase
         .from("leads")
-        .update(req.body)
+        .update({
+          ...req.body,
+          lead_score,
+          lead_temperature
+        })
         .eq("id", id)
         .select()
 
@@ -215,7 +280,8 @@ router.delete("/:id", async (req, res) => {
 
   try {
 
-    const { id } = req.params
+    const { id } =
+      req.params
 
     const { error } =
       await supabase

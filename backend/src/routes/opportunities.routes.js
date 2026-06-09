@@ -5,25 +5,28 @@ const router = express.Router()
 const supabase =
   require("../config/supabase")
 
+function normalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
 function calculateScore(opportunity) {
 
   let score = 0
 
   const category =
-    String(opportunity.category || "")
-      .toLowerCase()
+    normalize(opportunity.category)
 
   const source =
-    String(opportunity.source || "")
-      .toLowerCase()
+    normalize(opportunity.source)
 
   const currentMotorcycle =
-    String(opportunity.current_motorcycle || "")
-      .toLowerCase()
+    normalize(opportunity.current_motorcycle)
 
   const purchaseTimeline =
-    String(opportunity.purchase_timeline || "")
-      .toLowerCase()
+    normalize(opportunity.purchase_timeline)
 
   const year =
     Number(opportunity.motorcycle_year || 0)
@@ -32,13 +35,11 @@ function calculateScore(opportunity) {
     Number(opportunity.mileage || 0)
 
   if (category.includes("motoboy")) score += 25
-  if (category.includes("mototáxi")) score += 25
   if (category.includes("mototaxi")) score += 25
   if (category.includes("delivery")) score += 20
   if (category.includes("entregador")) score += 20
   if (category.includes("auto escola")) score += 20
   if (category.includes("oficina")) score += 15
-  if (category.includes("moto peças")) score += 15
   if (category.includes("moto pecas")) score += 15
   if (category.includes("borracharia")) score += 10
   if (category.includes("empresa")) score += 10
@@ -49,7 +50,6 @@ function calculateScore(opportunity) {
 
   if (source.includes("marketplace")) score += 15
   if (source.includes("facebook")) score += 10
-  if (source.includes("indicação")) score += 15
   if (source.includes("indicacao")) score += 15
   if (source.includes("instagram")) score += 10
 
@@ -88,7 +88,10 @@ function calculateScore(opportunity) {
   if (purchaseTimeline.includes("3 meses")) score += 15
   if (purchaseTimeline.includes("6 meses")) score += 5
 
-  return Math.min(score, 100)
+  return Math.max(
+    0,
+    Math.min(score, 100)
+  )
 
 }
 
@@ -99,7 +102,17 @@ function calculateTradeProbability(score) {
   if (score >= 70) return 75
   if (score >= 60) return 60
   if (score >= 40) return 45
+
   return 20
+
+}
+
+function getTemperature(score) {
+
+  if (score >= 70) return "Quente"
+  if (score >= 40) return "Morno"
+
+  return "Frio"
 
 }
 
@@ -141,15 +154,27 @@ router.post("/", async (req, res) => {
     const trade_probability =
       calculateTradeProbability(score)
 
+    const payload = {
+      ...req.body,
+      motorcycle_year:
+        req.body.motorcycle_year
+          ? Number(req.body.motorcycle_year)
+          : null,
+      mileage:
+        req.body.mileage
+          ? Number(req.body.mileage)
+          : null,
+      professional_use:
+        req.body.professional_use || false,
+      score,
+      trade_probability
+    }
+
     const { data, error } =
       await supabase
         .from("opportunities")
         .insert([
-          {
-            ...req.body,
-            score,
-            trade_probability
-          }
+          payload
         ])
         .select()
 
@@ -187,8 +212,24 @@ router.put("/:id", async (req, res) => {
     const { id } =
       req.params
 
+    const { data: currentOpportunity, error: findError } =
+      await supabase
+        .from("opportunities")
+        .select("*")
+        .eq("id", id)
+        .single()
+
+    if (findError) {
+      return res.status(400).json(findError)
+    }
+
+    const updatedPayload = {
+      ...currentOpportunity,
+      ...req.body
+    }
+
     const score =
-      calculateScore(req.body)
+      calculateScore(updatedPayload)
 
     const trade_probability =
       calculateTradeProbability(score)
@@ -269,6 +310,9 @@ router.post("/:id/to-lead", async (req, res) => {
       return res.status(400).json(findError)
     }
 
+    const score =
+      opportunity.score || 0
+
     const notes = `
 Lead vindo do Radar de Oportunidades.
 
@@ -285,28 +329,44 @@ Observações:
 ${opportunity.notes || "-"}
     `
 
+    const leadPayload = {
+      company_name: opportunity.name,
+      responsible: "",
+      phone: opportunity.phone || "",
+      whatsapp: opportunity.phone || "",
+      instagram: opportunity.instagram || "",
+      address: "",
+      city: opportunity.city || "",
+      status: "Novo Lead",
+      interest: opportunity.category || "Não definido",
+      notes,
+      priority:
+        score >= 70
+          ? "Alta"
+          : score >= 40
+            ? "Média"
+            : "Baixa",
+      current_motorcycle:
+        opportunity.current_motorcycle || "",
+      motorcycle_year:
+        opportunity.motorcycle_year || null,
+      mileage:
+        opportunity.mileage || null,
+      professional_use:
+        opportunity.professional_use || false,
+      lead_source: "Radar",
+      purchase_timeline:
+        opportunity.purchase_timeline || "",
+      lead_score: score,
+      lead_temperature:
+        getTemperature(score)
+    }
+
     const { data, error } =
       await supabase
         .from("leads")
         .insert([
-          {
-            company_name: opportunity.name,
-            responsible: "",
-            phone: opportunity.phone || "",
-            whatsapp: opportunity.phone || "",
-            instagram: opportunity.instagram || "",
-            address: "",
-            city: opportunity.city || "",
-            status: "Novo Lead",
-            interest: opportunity.category || "Não definido",
-            notes,
-            priority:
-              opportunity.score >= 70
-                ? "Alta"
-                : opportunity.score >= 40
-                  ? "Média"
-                  : "Baixa"
-          }
+          leadPayload
         ])
         .select()
 

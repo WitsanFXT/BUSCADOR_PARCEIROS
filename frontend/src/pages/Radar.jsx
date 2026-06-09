@@ -583,14 +583,6 @@ export default function Radar() {
                       </button>
                     )}
 
-                    <button
-                        onClick={() =>
-                            deleteOpportunity(item.id)
-                        }
-                    className="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-xl font-bold"
-                    >
-                    Excluir
-                    </button>
 
                   </div>
 

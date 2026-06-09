@@ -169,6 +169,47 @@ router.get("/", async (req, res) => {
             "tarefas do dia"
           ]
           },
+
+        {
+          type: "page",
+          title: "Indicações",
+          description: "Parceiros indicadores, ranking, comissões e clientes indicados",
+          path: "/indicacoes",
+          keywords: [
+            "indicações",
+            "indicacoes",
+            "indicador",
+            "parceiro",
+            "comissão",
+            "comissao",
+            "oficina",
+            "borracharia",
+            "motopeças",
+            "motopecas",
+            "ranking"
+          ]
+          },
+
+          {
+            type: "page",
+            title: "Funil de Vendas",
+            description: "Etapas comerciais, simulações, documentação, análise de crédito e vendas",
+            path: "/funil",
+            keywords: [
+              "funil",
+              "vendas",
+              "etapas",
+              "simulação",
+              "simulacao",
+              "documentação",
+              "documentacao",
+              "analise de credito",
+              "análise de crédito",
+              "venda realizada",
+              "perdido"
+            ]
+          },
+
           {
             type: "page",
             title: "Central de Conteúdo",

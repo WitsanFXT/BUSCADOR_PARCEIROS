@@ -33,6 +33,18 @@ const missionsRoutes =
 const contentRoutes =
   require("./routes/content.routes")
 
+const referralsRoutes =
+  require("./routes/referrals.routes")
+
+const salesFunnelRoutes =
+  require("./routes/salesFunnel.routes")
+
+const aiRoutes =
+  require("./routes/ai.routes")
+
+const assistantRoutes =
+  require("./routes/assistant.routes")
+
 
 /* CORS */
 app.use(cors({
@@ -80,6 +92,11 @@ app.use(
 )
 
 app.use(
+  "/assistant",
+  assistantRoutes
+)
+
+app.use(
   "/opportunities",
   opportunitiesRoutes
 )
@@ -97,6 +114,21 @@ app.use(
 app.use(
   "/content",
   contentRoutes
+)
+
+app.use(
+  "/referrals",
+  referralsRoutes
+)
+
+app.use(
+  "/sales-funnel",
+  salesFunnelRoutes
+)
+
+app.use(
+  "/ai",
+  aiRoutes
 )
 
 /* ROOT */

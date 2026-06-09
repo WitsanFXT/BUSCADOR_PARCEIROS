@@ -2,8 +2,12 @@ const express = require("express")
 
 const router = express.Router()
 
-const supabase =
-  require("../config/supabase")
+const supabase = require("../config/supabase")
+
+const {
+  calculateLeadScore,
+  getLeadTemperature
+} = require("../utils/leadScore")
 
 function todayDate() {
   return new Date()
@@ -11,44 +15,23 @@ function todayDate() {
     .split("T")[0]
 }
 
-function leadScore(lead) {
-
-  let score = 0
-
-  if (lead.priority === "Alta") score += 70
-  if (lead.priority === "Média") score += 50
-  if (lead.priority === "Baixa") score += 30
-
-  if (lead.status === "Novo Lead") score += 15
-  if (lead.status === "Negociando") score += 25
-  if (lead.status === "Parceiro") score -= 30
-
-  if (lead.phone || lead.whatsapp) score += 15
-  if (lead.instagram) score += 10
-  if (lead.city) score += 5
-
-  return Math.max(
-    0,
-    Math.min(score, 100)
-  )
-
-}
-
 function priorityLabel(score) {
-
   if (score >= 80) return "Prioridade Máxima"
   if (score >= 70) return "Alta Prioridade"
   if (score >= 40) return "Prioridade Média"
   return "Baixa Prioridade"
+}
 
+function probabilityByScore(score) {
+  if (score >= 80) return 90
+  if (score >= 70) return 80
+  if (score >= 40) return 55
+  return 25
 }
 
 router.get("/priorities", async (req, res) => {
-
   try {
-
-    const today =
-      todayDate()
+    const today = todayDate()
 
     const { data: leads, error: leadsError } =
       await supabase
@@ -81,9 +64,13 @@ router.get("/priorities", async (req, res) => {
 
     const leadItems =
       (leads || []).map(lead => {
-
         const score =
-          leadScore(lead)
+          lead.lead_score ??
+          calculateLeadScore(lead)
+
+        const temperature =
+          lead.lead_temperature ??
+          getLeadTemperature(score)
 
         return {
           type: "lead",
@@ -93,20 +80,12 @@ router.get("/priorities", async (req, res) => {
           city: lead.city || "",
           status: lead.status || "Sem status",
           score,
-          probability:
-            score >= 80
-              ? 85
-              : score >= 70
-                ? 75
-                : score >= 40
-                  ? 50
-                  : 25,
+          temperature,
+          probability: probabilityByScore(score),
           reason:
-            "Lead do CRM com prioridade calculada pelo status, telefone, cidade e prioridade.",
-          label:
-            priorityLabel(score)
+            `Lead ${temperature} do CRM. Score calculado com base em prioridade, status, origem, moto atual, ano, KM, uso profissional e prazo de compra.`,
+          label: priorityLabel(score)
         }
-
       })
 
     const opportunityItems =
@@ -115,9 +94,25 @@ router.get("/priorities", async (req, res) => {
           item.status !== "Enviado para CRM"
         )
         .map(item => {
-
           const score =
-            item.score || 0
+            item.score ??
+            calculateLeadScore({
+              priority: item.priority,
+              status: item.status,
+              phone: item.phone,
+              whatsapp: item.whatsapp,
+              instagram: item.instagram,
+              city: item.city,
+              current_motorcycle: item.current_motorcycle,
+              motorcycle_year: item.motorcycle_year,
+              mileage: item.mileage,
+              professional_use: item.professional_use,
+              lead_source: item.source,
+              purchase_timeline: item.purchase_timeline
+            })
+
+          const temperature =
+            getLeadTemperature(score)
 
           return {
             type: "opportunity",
@@ -127,14 +122,12 @@ router.get("/priorities", async (req, res) => {
             city: item.city || "",
             status: item.status || "Nova oportunidade",
             score,
-            probability:
-              item.trade_probability || score,
+            temperature,
+            probability: item.trade_probability || probabilityByScore(score),
             reason:
-              `Oportunidade do Radar: ${item.category || "sem categoria"}. ${item.current_motorcycle ? `Moto atual: ${item.current_motorcycle}.` : ""}`,
-            label:
-              priorityLabel(score)
+              `Oportunidade ${temperature} do Radar. ${item.category ? `Categoria: ${item.category}.` : ""} ${item.current_motorcycle ? `Moto atual: ${item.current_motorcycle}.` : ""}`,
+            label: priorityLabel(score)
           }
-
         })
 
     const followupItems =
@@ -147,17 +140,16 @@ router.get("/priorities", async (req, res) => {
           item.contact_name ||
           item.title ||
           "Follow-up pendente",
-        phone:
-          item.phone || "",
+        phone: item.phone || "",
         city: "",
         status: "Follow-up vencido/para hoje",
         score: 100,
-        probability: 90,
+        temperature: "Quente",
+        probability: 95,
         reason:
           item.notes ||
-          "Este contato possui retorno pendente para hoje ou atrasado.",
-        label:
-          "Follow-up Urgente"
+          "Este contato possui retorno pendente para hoje ou está atrasado.",
+        label: "Follow-up Urgente"
       }))
 
     const priorities =
@@ -166,27 +158,20 @@ router.get("/priorities", async (req, res) => {
         ...opportunityItems,
         ...leadItems
       ]
-        .sort((a, b) =>
-          b.score - a.score
-        )
+        .sort((a, b) => b.score - a.score)
         .slice(0, 30)
 
     res.json(priorities)
 
   } catch (err) {
-
     res.status(500).json({
       error: err.message
     })
-
   }
-
 })
 
 router.get("/followups", async (req, res) => {
-
   try {
-
     const { data, error } =
       await supabase
         .from("followups")
@@ -202,19 +187,14 @@ router.get("/followups", async (req, res) => {
     res.json(data)
 
   } catch (err) {
-
     res.status(500).json({
       error: err.message
     })
-
   }
-
 })
 
 router.post("/followups", async (req, res) => {
-
   try {
-
     const {
       lead_id,
       opportunity_id,
@@ -268,21 +248,15 @@ router.post("/followups", async (req, res) => {
     res.status(201).json(data)
 
   } catch (err) {
-
     res.status(500).json({
       error: err.message
     })
-
   }
-
 })
 
 router.put("/followups/:id/done", async (req, res) => {
-
   try {
-
-    const { id } =
-      req.params
+    const { id } = req.params
 
     const { data, error } =
       await supabase
@@ -300,21 +274,15 @@ router.put("/followups/:id/done", async (req, res) => {
     res.json(data)
 
   } catch (err) {
-
     res.status(500).json({
       error: err.message
     })
-
   }
-
 })
 
 router.delete("/followups/:id", async (req, res) => {
-
   try {
-
-    const { id } =
-      req.params
+    const { id } = req.params
 
     const { error } =
       await supabase
@@ -331,13 +299,10 @@ router.delete("/followups/:id", async (req, res) => {
     })
 
   } catch (err) {
-
     res.status(500).json({
       error: err.message
     })
-
   }
-
 })
 
 module.exports = router

@@ -119,6 +119,18 @@ As mensagens devem:
 - Não parecer automação.
 - Ter abordagem consultiva.
 - Terminar com uma pergunta simples.
+Use obrigatoriamente o contexto real do lead.
+
+Dados importantes:
+- Nome: ${lead?.company_name || ""}
+- Instagram: ${lead?.instagram || ""}
+- Origem: ${lead?.lead_source || ""}
+- Interesse: ${lead?.interest || ""}
+- Moto atual: ${lead?.current_motorcycle || ""}
+- Observações do CRM: ${lead?.notes || ""}
+
+Se houver comentário original nas observações, use esse comentário para criar uma abordagem personalizada.
+Não gere mensagem genérica.
 
 Retorne JSON:
 {

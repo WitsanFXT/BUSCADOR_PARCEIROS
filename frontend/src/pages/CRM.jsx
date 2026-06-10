@@ -29,6 +29,9 @@ export default function CRM() {
   const [search, setSearch] = useState(localStorage.getItem("crmSearch") || "")
   const [filter, setFilter] = useState("Todos")
   const [scheduleLead, setScheduleLead] = useState(null)
+  const [actionsModalLead, setActionsModalLead] = useState(null)
+  const [leadActions, setLeadActions] = useState([])
+  const [loadingActions, setLoadingActions] = useState(false)
 
   const [scheduleForm, setScheduleForm] = useState({
     days: "3",
@@ -135,6 +138,8 @@ export default function CRM() {
       return
     }
 
+    
+
     const message = `Olá, ${lead.responsible || lead.company_name || "tudo bem"}! Sou consultor Yamaha. Queria verificar se ainda faz sentido avaliarmos uma condição para sua próxima moto.`
 
     window.open(
@@ -166,6 +171,28 @@ export default function CRM() {
       notes: `Retornar contato com ${lead.company_name || "cliente"} e verificar interesse.`
     })
   }
+
+  async function loadLeadActions(lead) {
+  try {
+    setActionsModalLead(lead)
+    setLoadingActions(true)
+
+    const response =
+      await api.get(`/assistant/lead-actions/${lead.id}`)
+
+    setLeadActions(response.data || [])
+  } catch (err) {
+    console.log(err)
+
+    showToast(
+      "error",
+      "Erro ao carregar histórico",
+      "Não foi possível carregar as mensagens IA deste lead."
+    )
+  } finally {
+    setLoadingActions(false)
+  }
+}
 
   async function scheduleFollowup() {
     if (!scheduleLead) return
@@ -551,6 +578,13 @@ export default function CRM() {
                 </button>
 
                 <button
+  onClick={() => loadLeadActions(lead)}
+  className="bg-slate-700 hover:bg-slate-600 transition p-3 rounded-xl font-bold"
+>
+  Histórico IA
+</button>
+
+                <button
                   onClick={() => openInstagram(lead)}
                   className="bg-pink-600 hover:bg-pink-700 transition p-3 rounded-xl font-bold flex items-center justify-center gap-2"
                 >
@@ -666,6 +700,63 @@ export default function CRM() {
         onCancel={() => setLeadToDelete(null)}
         onConfirm={() => deleteLead(leadToDelete.id)}
       />
+
+      {actionsModalLead && (
+  <div className="fixed inset-0 bg-black/70 z-[9998] flex items-center justify-center px-4">
+    <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-3xl max-h-[80vh] overflow-auto">
+      <h2 className="text-2xl font-bold">
+        Histórico IA
+      </h2>
+
+      <p className="text-slate-400 mt-2">
+        {actionsModalLead.company_name}
+      </p>
+
+      <div className="mt-6 space-y-4">
+        {loadingActions && (
+          <p className="text-slate-400">
+            Carregando histórico...
+          </p>
+        )}
+
+        {!loadingActions && leadActions.length === 0 && (
+          <p className="text-slate-400">
+            Nenhuma mensagem IA gerada para este lead ainda.
+          </p>
+        )}
+
+        {leadActions.map(action => (
+          <div
+            key={action.id}
+            className="bg-slate-950 border border-slate-800 rounded-2xl p-4"
+          >
+            <p className="text-sm text-slate-500 font-bold">
+              {action.action_title || action.action_type}
+            </p>
+
+            <p className="text-slate-200 mt-3 whitespace-pre-line">
+              {action.message}
+            </p>
+
+            <p className="text-xs text-slate-500 mt-3">
+              {new Date(action.created_at).toLocaleString("pt-BR")}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => {
+          setActionsModalLead(null)
+          setLeadActions([])
+        }}
+        className="mt-6 bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-xl font-bold"
+      >
+        Fechar
+      </button>
+    </div>
+  </div>
+)}
 
       <NewLeadModal
         open={showModal}

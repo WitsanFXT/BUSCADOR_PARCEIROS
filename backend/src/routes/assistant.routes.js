@@ -9,6 +9,8 @@ const {
   generateAIResponse
 } = require("../services/aiEngine.service")
 
+const { scrapeSocialPost } = require("../services/socialScraper.service")
+
 
 function todayDate() {
   return new Date()
@@ -1259,6 +1261,126 @@ router.post("/extract-leads", async (req, res) => {
   }
 })
 
+router.post("/extract-from-url", async (req, res) => {
+  try {
+    const { url, city } = req.body
+
+    if (!url) {
+      return res.status(400).json({
+        error: "A URL da publicação é obrigatória"
+      })
+    }
+
+    const scraped =
+      await scrapeSocialPost(url)
+
+    if (
+      !scraped.text ||
+      scraped.text.trim().length < 10
+    ) {
+      return res.status(400).json({
+        error:
+          "Não foi possível extrair texto útil desta publicação"
+      })
+    }
+
+    const result =
+      await generateAIResponse({
+        objective: "extract_leads",
+        lead: null,
+        actions: [],
+        extra: {
+          text: scraped.text,
+          source: scraped.platform,
+          city
+        }
+      })
+
+    const leadsToInsert =
+      (result.leads || []).map((lead) => ({
+        source:
+          scraped.platform ||
+          lead.lead_source ||
+          "URL",
+        source_text:
+          scraped.text,
+        original_comment:
+          lead.original_comment || "",
+        name:
+          lead.name || "",
+        phone:
+          lead.phone || "",
+        instagram:
+          lead.instagram || "",
+        city:
+          lead.city || city || "",
+        interest:
+          lead.interest || "",
+        current_motorcycle:
+          lead.current_motorcycle || "",
+        professional_use:
+          lead.professional_use || false,
+        lead_score:
+          lead.lead_score || 0,
+        reason:
+          lead.reason || "",
+        review_status:
+          "pending"
+      }))
+
+    if (!leadsToInsert.length) {
+      return res.json({
+        title: "Nenhum lead encontrado",
+        summary:
+          result.summary ||
+          "A IA não encontrou leads qualificados nesta publicação.",
+        leads: [],
+        raw_count:
+          scraped.rawItems?.length || 0
+      })
+    }
+
+    const { data, error } =
+      await supabase
+        .from("extracted_leads")
+        .insert(leadsToInsert)
+        .select()
+
+    if (error) {
+      return res.status(400).json(error)
+    }
+
+    res.status(201).json({
+      title:
+        result.title ||
+        "Leads extraídos da publicação",
+      summary:
+        result.summary || "",
+      source:
+        scraped.platform,
+      source_url:
+        url,
+      raw_count:
+        scraped.rawItems?.length || 0,
+      leads:
+        data
+    })
+
+  } catch (err) {
+    console.log(
+      "Erro em /assistant/extract-from-url:",
+      err.response?.data || err.message
+    )
+
+    res.status(500).json({
+      error:
+        err.response?.data || err.message
+    })
+  }
+})
+
+
+
 router.get("/extracted-leads", async (req, res) => {
   try {
     const status =
@@ -1297,7 +1419,6 @@ router.put("/extracted-leads/:id/status", async (req, res) => {
       "rejected",
       "later",
       "sent_crm",
-      "sent_radar"
     ]
 
     if (!allowed.includes(status)) {
@@ -1376,14 +1497,26 @@ router.post("/extracted-leads/:id/send-crm", async (req, res) => {
                 : extracted.lead_score >= 40
                   ? "Morno"
                   : "Frio",
-            notes:
-              extracted.reason || "",
-            status:
-              "Novo Lead",
-            priority:
-              extracted.lead_score >= 70
-                ? "Alta"
-                : "Média"
+    notes:
+  [
+    extracted.reason
+      ? `Motivo IA: ${extracted.reason}`
+      : null,
+
+    extracted.original_comment
+      ? `Comentário original: ${extracted.original_comment}`
+      : null,
+
+    extracted.source_text
+      ? `Texto de origem: ${extracted.source_text}`
+      : null,
+
+    extracted.source
+      ? `Origem: ${extracted.source}`
+      : null
+  ]
+    .filter(Boolean)
+    .join("\n\n"),
           }
         ])
         .select()
@@ -1408,139 +1541,71 @@ router.post("/extracted-leads/:id/send-crm", async (req, res) => {
   }
 })
 
-router.post("/extracted-leads/:id/send-radar", async (req, res) => {
+router.get("/scraper-health", (req, res) => {
+  res.json({
+    ok: true,
+    message: "Assistant scraper route ativa",
+    apify_token: !!process.env.APIFY_TOKEN,
+    instagram_actor: process.env.APIFY_INSTAGRAM_ACTOR || null,
+    facebook_actor: process.env.APIFY_FACEBOOK_ACTOR || null
+  })
+})
+
+router.get("/scraper-test", async (req, res) => {
   try {
-    const { id } = req.params
+    const { url } = req.query
 
-    const { data: extracted, error: extractedError } =
-      await supabase
-        .from("extracted_leads")
-        .select("*")
-        .eq("id", id)
-        .single()
-
-    if (extractedError || !extracted) {
-      return res.status(404).json({
-        error: "Lead extraído não encontrado"
-      })
-    }
-
-    const opportunityData = {
-      name:
-        extracted.name ||
-        "Lead captado pela IA",
-
-      source:
-        extracted.source ||
-        "Captação IA",
-
-      city:
-        extracted.city || "",
-
-      category:
-        extracted.professional_use
-          ? "Uso profissional"
-          : "Lead captado",
-
-      phone:
-        extracted.phone || "",
-
-      instagram:
-        extracted.instagram || "",
-
-      status:
-        "Novo",
-
-      notes:
-        [
-          extracted.interest
-            ? `Interesse: ${extracted.interest}`
-            : null,
-
-          extracted.current_motorcycle
-            ? `Moto atual: ${extracted.current_motorcycle}`
-            : null,
-
-          extracted.reason
-            ? `Motivo IA: ${extracted.reason}`
-            : null,
-
-          extracted.source_text
-            ? `Origem: ${extracted.source_text}`
-            : null
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-
-      score:
-        extracted.lead_score || 0,
-
-      trade_probability:
-        extracted.lead_score || 0,
-
-      professional_use:
-        extracted.professional_use || false,
-
-      purchase_timeline:
-        "Sem previsão",
-
-      current_motorcycle:
-        extracted.current_motorcycle || ""
-    }
-
-    const {
-      data: opportunity,
-      error: opportunityError
-    } =
-      await supabase
-        .from("opportunities")
-        .insert([opportunityData])
-        .select()
-
-    if (opportunityError) {
+    if (!url) {
       return res.status(400).json({
-        error:
-          opportunityError.message
+        error: "Informe a URL"
       })
     }
 
-    const {
-      error: updateError
-    } =
-      await supabase
-        .from("extracted_leads")
-        .update({
-          review_status:
-            "sent_radar"
-        })
-        .eq("id", id)
+    console.log("TESTANDO SCRAPER URL:", url)
 
-    if (updateError) {
-      return res.status(400).json({
-        error:
-          updateError.message
-      })
-    }
+    const scraped = await scrapeSocialPost(url)
 
-    res.status(201).json({
-      success: true,
-      message:
-        "Lead enviado para o Radar com sucesso.",
-      opportunity:
-        opportunity?.[0]
+    res.json({
+      ok: true,
+      platform: scraped.platform,
+      raw_count: scraped.rawItems?.length || 0,
+      text_preview: scraped.text?.slice(0, 2000) || "",
+      has_text: !!scraped.text
     })
-
   } catch (err) {
-    console.log(
-      "Erro send-radar:",
-      err
-    )
+    console.log("ERRO SCRAPER TEST:", err.response?.data || err.message)
 
+    res.status(500).json({
+      ok: false,
+      error: err.response?.data || err.message
+    })
+  }
+})
+
+
+router.get("/lead-actions/:lead_id", async (req, res) => {
+  try {
+    const { lead_id } = req.params
+
+    const { data, error } =
+      await supabase
+        .from("commercial_actions")
+        .select("*")
+        .eq("lead_id", lead_id)
+        .order("created_at", {
+          ascending: false
+        })
+
+    if (error) {
+      return res.status(400).json(error)
+    }
+
+    res.json(data || [])
+  } catch (err) {
     res.status(500).json({
       error: err.message
     })
   }
 })
-
 
 module.exports = router

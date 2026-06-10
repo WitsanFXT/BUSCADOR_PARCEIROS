@@ -54,6 +54,17 @@ app.use(cors({
 /* JSON */
 app.use(express.json())
 
+/* ROOT */
+
+app.get("/", (req, res) => {
+  console.log("ROTA RAIZ CHAMADA")
+
+  return res.status(200).json({
+    message: "MotoLead Pro API",
+    ok: true
+  })
+})
+
 /* LOG */
 app.use((req, res, next) => {
 
@@ -64,6 +75,9 @@ app.use((req, res, next) => {
   next()
 
 })
+
+
+
 
 /* ROUTES */
 app.use(
@@ -131,14 +145,6 @@ app.use(
   aiRoutes
 )
 
-/* ROOT */
-app.get("/", (req, res) => {
-
-  res.json({
-    message: "MotoLead Pro API"
-  })
-
-})
 
 /* ERROR HANDLER */
 app.use((err, req, res, next) => {

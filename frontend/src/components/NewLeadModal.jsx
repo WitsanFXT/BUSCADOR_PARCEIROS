@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import api from "../services/api"
 
 const initialForm = {
@@ -22,11 +22,36 @@ const initialForm = {
 export default function NewLeadModal({
   open,
   onClose,
-  onSuccess
+  onSuccess,
+  leadToEdit = null
 }) {
   const [form, setForm] = useState(initialForm)
   const [duplicateLead, setDuplicateLead] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+  if (leadToEdit) {
+    setForm({
+      company_name: leadToEdit.company_name || "",
+      responsible: leadToEdit.responsible || "",
+      phone: leadToEdit.phone || "",
+      whatsapp: leadToEdit.whatsapp || "",
+      instagram: leadToEdit.instagram || "",
+      address: leadToEdit.address || "",
+      city: leadToEdit.city || "",
+      interest: leadToEdit.interest || "",
+      notes: leadToEdit.notes || "",
+      current_motorcycle: leadToEdit.current_motorcycle || "",
+      motorcycle_year: leadToEdit.motorcycle_year || "",
+      mileage: leadToEdit.mileage || "",
+      professional_use: leadToEdit.professional_use || false,
+      lead_source: leadToEdit.lead_source || "Manual",
+      purchase_timeline: leadToEdit.purchase_timeline || "Sem previsão"
+    })
+  } else {
+    setForm(initialForm)
+  }
+}, [leadToEdit, open])
 
   function updateField(field, value) {
     setForm({
@@ -46,37 +71,57 @@ export default function NewLeadModal({
   }
 
   async function saveLead() {
-    try {
-      setLoading(true)
-      setDuplicateLead(null)
+  try {
+    setLoading(true)
+    setDuplicateLead(null)
 
+    const payload = {
+      ...form,
+      mileage:
+        form.mileage
+          ? Number(form.mileage)
+          : null,
+      motorcycle_year:
+        form.motorcycle_year
+          ? Number(form.motorcycle_year)
+          : null,
+      status:
+        leadToEdit?.status || "Novo Lead"
+    }
+
+    if (leadToEdit) {
+      await api.put(
+        `/leads/${leadToEdit.id}`,
+        payload
+      )
+
+      alert("Lead atualizado com sucesso!")
+    } else {
       await api.post("/leads", {
-        ...form,
-        mileage: form.mileage ? Number(form.mileage) : null,
-        motorcycle_year: form.motorcycle_year ? Number(form.motorcycle_year) : null,
-        status: "Novo Lead",
+        ...payload,
         priority: "Média"
       })
-
-      onSuccess()
-      closeModal()
-
-    } catch (err) {
-      if (
-        err.response?.status === 409 &&
-        err.response?.data?.error === "DUPLICATE_LEAD"
-      ) {
-        setDuplicateLead(err.response.data.lead)
-        return
-      }
-
-      console.log(err)
-      alert("Erro ao salvar lead")
-
-    } finally {
-      setLoading(false)
     }
+
+    onSuccess()
+    closeModal()
+
+  } catch (err) {
+    if (
+      err.response?.status === 409 &&
+      err.response?.data?.error === "DUPLICATE_LEAD"
+    ) {
+      setDuplicateLead(err.response.data.lead)
+      return
+    }
+
+    console.log(err)
+    alert("Erro ao salvar lead")
+
+  } finally {
+    setLoading(false)
   }
+}
 
   async function atualizarLeadAntigo() {
     if (!duplicateLead) return
@@ -164,7 +209,7 @@ export default function NewLeadModal({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
       <div className="bg-slate-900 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 text-white">
         <h2 className="text-2xl font-bold mb-6">
-          Novo Lead
+          {leadToEdit ? "Editar Lead" : "Novo Lead"}
         </h2>
 
         {duplicateLead && (
@@ -405,7 +450,11 @@ export default function NewLeadModal({
             disabled={loading}
             className="flex-1 bg-green-600 hover:bg-green-700 p-3 rounded-xl font-bold disabled:opacity-50"
           >
-            {loading ? "Salvando..." : "Salvar"}
+            {loading
+  ? "Salvando..."
+  : leadToEdit
+    ? "Atualizar Lead"
+    : "Salvar"}
           </button>
 
           <button

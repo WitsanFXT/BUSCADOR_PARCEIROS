@@ -99,11 +99,11 @@ export default function Sidebar({
     {
       title: "Prospecção",
       items: [
-        {
-          name: "Radar",
-          path: "/radar",
-          icon: <RadarIcon size={20} />
-        },
+        //{
+          //name: "Radar",
+          //path: "/radar",
+          //icon: <RadarIcon size={20} />
+        //},
 
         {
           name: "Captação IA",
@@ -127,11 +127,11 @@ export default function Sidebar({
           path: "/missoes",
           icon: <ListChecks size={20} />
         },
-        {
-          name: "Checklist",
-          path: "/checklist",
-          icon: <ClipboardCheck size={20} />
-        },
+        //{
+          //name: "Checklist",
+          //path: "/checklist",
+          //icon: <ClipboardCheck size={20} />
+        //},
         {
           name: "Follow-up IA",
           path: "/followup-ia",
@@ -147,11 +147,11 @@ export default function Sidebar({
           path: "/conteudo",
           icon: <Clapperboard size={20} />
         },
-        {
-          name: "Automação",
-          path: "/automacao",
-          icon: <Bot size={20} />
-        }
+        //{
+        //  name: "Automação",
+        //  path: "/automacao",
+        //  icon: <Bot size={20} />
+        //}
       ]
     },
     {

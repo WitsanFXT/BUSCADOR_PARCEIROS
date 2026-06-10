@@ -3,136 +3,92 @@ const axios = require("axios")
 
 const router = express.Router()
 
+function normalizePlace(place) {
+  return {
+    place_id: place.id || "",
+    name: place.displayName?.text || "Empresa sem nome",
+    formatted_address: place.formattedAddress || "",
+    vicinity: place.shortFormattedAddress || place.formattedAddress || "",
+    formatted_phone_number: place.nationalPhoneNumber || "",
+    international_phone_number: place.internationalPhoneNumber || "",
+    website: place.websiteUri || "",
+    url: place.googleMapsUri || "",
+    rating: place.rating || null,
+    user_ratings_total: place.userRatingCount || 0,
+    business_status: place.businessStatus || "",
+    opening_hours: {
+      open_now: place.regularOpeningHours?.openNow ?? null
+    },
+    types: place.types || [],
+    location: {
+      lat: place.location?.latitude || null,
+      lng: place.location?.longitude || null
+    }
+  }
+}
+
 router.get("/search", async (req, res) => {
-
   try {
+    const { city, type, radius } = req.query
 
-    const {
-      city,
-      type
-    } = req.query
-
-    const query =
-      `${type} em ${city}`
-
-    /* INICIA ACTOR */
-    const startResponse =
-      await axios.post(
-
-        `https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token=${process.env.APIFY_TOKEN}`,
-
-        {
-          searchStringsArray: [
-            query
-          ],
-
-          maxCrawledPlacesPerSearch: 20,
-
-          language: "pt-BR",
-
-          region: "BR"
-        }
-
-      )
-
-    const runId =
-      startResponse.data.data.id
-
-    /* ESPERA EXECUÇÃO */
-    let finished = false
-    let datasetId = null
-
-    while (!finished) {
-
-      await new Promise(resolve =>
-        setTimeout(resolve, 3000)
-      )
-
-      const statusResponse =
-        await axios.get(
-          `https://api.apify.com/v2/actor-runs/${runId}?token=${process.env.APIFY_TOKEN}`
-        )
-
-      const status =
-        statusResponse.data.data.status
-
-      console.log(
-        "STATUS:",
-        status
-      )
-
-      if (
-        status === "SUCCEEDED"
-      ) {
-
-        finished = true
-
-        datasetId =
-          statusResponse.data
-            .data.defaultDatasetId
-
-      }
-
-      if (
-        status === "FAILED"
-      ) {
-
-        return res.status(500).json({
-          error:
-            "Falha ao buscar empresas"
-        })
-
-      }
-
+    if (!city || !type) {
+      return res.status(400).json({
+        error: "Cidade e tipo são obrigatórios"
+      })
     }
 
-    /* PEGA RESULTADOS */
-    const datasetResponse =
-      await axios.get(
-        `https://api.apify.com/v2/datasets/${datasetId}/items?token=${process.env.APIFY_TOKEN}`
-      )
+    if (!process.env.GOOGLE_MAPS_API_KEY) {
+      return res.status(500).json({
+        error: "GOOGLE_MAPS_API_KEY não configurada no .env"
+      })
+    }
 
-    const companies =
-      datasetResponse.data.map(
-        (item) => ({
+    const textQuery = `${type} em ${city}`
 
-          id: item.placeId,
+    const response = await axios.post(
+      "https://places.googleapis.com/v1/places:searchText",
+      {
+        textQuery,
+        languageCode: "pt-BR",
+        regionCode: "BR",
+        maxResultCount: 20
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": [
+            "places.id",
+            "places.displayName",
+            "places.formattedAddress",
+            "places.shortFormattedAddress",
+            "places.nationalPhoneNumber",
+            "places.internationalPhoneNumber",
+            "places.websiteUri",
+            "places.googleMapsUri",
+            "places.rating",
+            "places.userRatingCount",
+            "places.businessStatus",
+            "places.regularOpeningHours",
+            "places.types",
+            "places.location"
+          ].join(",")
+        }
+      }
+    )
 
-          name: item.title,
+    const places = response.data?.places || []
 
-          address: item.address,
-
-          phone: item.phone,
-
-          website: item.website,
-
-          rating: item.totalScore,
-
-          reviews: item.reviewsCount,
-
-          category: item.categoryName,
-
-          latitude: item.location?.lat,
-
-          longitude: item.location?.lng
-
-        })
-      )
+    const companies = places.map(normalizePlace)
 
     res.json(companies)
-
   } catch (error) {
-
-    console.log(error.response?.data)
+    console.log(error.response?.data || error.message)
 
     res.status(500).json({
-      error:
-        error.response?.data ||
-        error.message
+      error: error.response?.data || error.message
     })
-
   }
-
 })
 
 module.exports = router
